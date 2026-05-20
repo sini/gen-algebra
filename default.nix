@@ -13,4 +13,4 @@ let
     mkRefType = noLib "mkRefType";
   };
 in
-pure // (if module != null then module else moduleFallback)
+{ pure = pure; } // pure // (if module != null then module else moduleFallback)
