@@ -1,0 +1,37 @@
+{ lib, genLib, ... }:
+let
+  inherit (genLib) mkIntensional intensionalEq;
+in
+{
+  intensional.test-mkIntensional-is-callable = {
+    expr =
+      let
+        fn = mkIntensional "add1" { } (x: x + 1);
+      in
+      fn 5;
+    expected = 6;
+  };
+
+  intensional.test-mkIntensional-key-is-name = {
+    expr = (mkIntensional "myFn" { x = 1; } (a: a)).key;
+    expected = "myFn";
+  };
+
+  intensional.test-mkIntensional-closure-preserved = {
+    expr = (mkIntensional "myFn" { x = 1; y = 2; } (a: a)).closure;
+    expected = {
+      x = 1;
+      y = 2;
+    };
+  };
+
+  intensional.test-intensionalEq-same-key = {
+    expr = intensionalEq (mkIntensional "same" { } (x: x)) (mkIntensional "same" { different = true; } (y: y));
+    expected = true;
+  };
+
+  intensional.test-intensionalEq-different-key = {
+    expr = intensionalEq (mkIntensional "a" { } (x: x)) (mkIntensional "b" { } (x: x));
+    expected = false;
+  };
+}
