@@ -91,5 +91,47 @@ let
         showField = l: "${l} = ${builtins.toJSON (builtins.head r.__entries.${l})}";
       in
       "{ ${builtins.concatStringsSep "; " (builtins.map showField r.__order)} }";
+
+    # Left-biased combination (⊕). Left's stacks go above right's stacks.
+    # Label order: left's order first, then right-only labels.
+    combine =
+      a: b:
+      let
+        allLabels = a.__order ++ builtins.filter (l: !(builtins.elem l a.__order)) b.__order;
+        mergeStacks =
+          l:
+          let
+            aStack = a.__entries.${l} or [ ];
+            bStack = b.__entries.${l} or [ ];
+          in
+          aStack ++ bStack;
+        entries = builtins.listToAttrs (builtins.map (l: {
+          name = l;
+          value = mergeStacks l;
+        }) allLabels);
+      in
+      {
+        __entries = entries;
+        __order = allLabels;
+      };
+
+    # Smalltalk direction: delta(parent) ⊕ parent — delta wins
+    mixin = delta: parent: self.combine (delta parent) parent;
+
+    # Beta direction: prefix controls inner, suffix provides base
+    mixinBeta =
+      prefix: suffix:
+      let
+        inner = self.empty;
+      in
+      self.combine (prefix (self.combine suffix inner)) suffix;
+
+    # Mixin composition: M1 ⋆ M2 = fun(i) M1(M2(i) ⊕ i) ⊕ M2(i)
+    compose =
+      m1: m2: i:
+      let
+        m2i = m2 i;
+      in
+      self.combine (m1 (self.combine m2i i)) m2i;
   };
 in self
