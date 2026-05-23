@@ -30,16 +30,16 @@ let
     in
     num: if num == 0 then "0" else accumulate num "";
 
+  # Pad hex output to `width` chars with leading zeros.
+  # Max supported width: 16 (sufficient for 64-bit values).
   intToHexPadded =
     width: num:
     let
+      zeros = "0000000000000000";
       hex = intToHex num;
-      len = builtins.stringLength hex;
-      pad = builtins.concatStringsSep "" (
-        builtins.genList (_: "0") (if width > len then width - len else 0)
-      );
+      need = width - builtins.stringLength hex;
     in
-    pad + hex;
+    if need > 0 then (builtins.substring 0 need zeros) + hex else hex;
 in
 {
   inherit intToHex intToHexPadded;

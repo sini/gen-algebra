@@ -8,7 +8,15 @@ let
   mask16 = 65535; # 0xFFFF
 
   lo32 = x: bitAnd x mask32;
-  hi32 = x: bitAnd (bitShiftRight 32 x) mask32;
+  # Specialized right-shift-by-32: inlines the sign-bit logic to avoid
+  # the general bitShiftRight's elemAt lookups on every call.
+  shr32 =
+    x:
+    if x < 0 then
+      (bitAnd x 9223372036854775807) / 4294967296 + 2147483648
+    else
+      x / 4294967296;
+  hi32 = x: bitAnd (shr32 x) mask32;
   lo16 = x: bitAnd x mask16;
   hi16 = x: bitAnd (bitShiftRight 16 x) mask16;
 
@@ -20,7 +28,7 @@ let
       bL = lo32 b;
       bH = hi32 b;
       sumL = aL + bL;
-      carry = bitShiftRight 32 sumL;
+      carry = shr32 sumL;
       resultL = lo32 sumL;
       resultH = lo32 (aH + bH + carry);
     in
@@ -36,15 +44,17 @@ let
   wrapMul =
     a: b:
     let
+      aHi = shr32 a;
       a0 = lo16 a;
       a1 = hi16 a;
-      a2 = lo16 (bitShiftRight 32 a);
-      a3 = hi16 (bitShiftRight 32 a);
+      a2 = lo16 aHi;
+      a3 = hi16 aHi;
 
+      bHi = shr32 b;
       b0 = lo16 b;
       b1 = hi16 b;
-      b2 = lo16 (bitShiftRight 32 b);
-      b3 = hi16 (bitShiftRight 32 b);
+      b2 = lo16 bHi;
+      b3 = hi16 bHi;
 
       # Column 0 (bit 0)
       c0 = a0 * b0;

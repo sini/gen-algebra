@@ -10,7 +10,7 @@ let
     rotl64
     ;
   inherit (primitives.bytes) stringToBytes readLE64 readLE32;
-  inherit (primitives.radix) intToHex;
+  inherit (primitives.radix) intToHex intToHexPadded;
   inherit (builtins)
     bitAnd
     bitOr
@@ -119,15 +119,8 @@ let
     let
       lo = bitAnd n mask32;
       hi = bitAnd (bitShiftRight 32 n) mask32;
-      zeros = "00000000";
-      padTo8 =
-        s:
-        let
-          slen = builtins.stringLength s;
-        in
-        if slen < 8 then (builtins.substring 0 (8 - slen) zeros) + s else s;
     in
-    padTo8 (intToHex hi) + padTo8 (intToHex lo);
+    intToHexPadded 8 hi + intToHexPadded 8 lo;
 
   xxh64Impl =
     seed: str:
