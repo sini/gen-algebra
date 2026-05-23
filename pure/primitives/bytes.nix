@@ -1,8 +1,6 @@
 # Byte-level string operations — builtins only.
 # Generates single-byte-string → integer mappings at eval time.
 let
-  bits = import ./bits.nix;
-  inherit (bits) bitShiftLeft bitShiftRight;
   inherit (builtins)
     bitOr
     elemAt
@@ -77,16 +75,25 @@ let
   stringToBytes = str: genList (i: byteTable.${substring i 1 str}) (stringLength str);
 
   # Read 8 bytes at offset as little-endian 64-bit integer.
+  # Uses inlined constant multiplications instead of general bitShiftLeft.
+  # Sign-bit handling for byte 7 (bit 56): 0x80 << 56 = 2^63 = intMin.
+  intMin = -9223372036854775807 - 1;
   readLE64 =
     bytes: offset:
     let
       b = i: elemAt bytes (offset + i);
+      b7 = b 7;
+      # Bytes 0-6 produce values < 2^56, safe to combine with bitOr
+      low7 = bitOr
+        (bitOr (bitOr (b 0) ((b 1) * 256))
+               (bitOr ((b 2) * 65536) ((b 3) * 16777216)))
+        (bitOr (bitOr ((b 4) * 4294967296) ((b 5) * 1099511627776))
+               ((b 6) * 281474976710656));
+      # Byte 7 at position 56: values 0-127 are safe, 128-255 set the sign bit
+      high = if b7 < 128 then b7 * 72057594037927936
+             else (b7 - 128) * 72057594037927936 + intMin;
     in
-    bitOr (bitOr (bitOr (b 0) (bitShiftLeft 8 (b 1))) (bitOr (bitShiftLeft 16 (b 2)) (bitShiftLeft 24 (b 3)))) (
-      bitOr (bitOr (bitShiftLeft 32 (b 4)) (bitShiftLeft 40 (b 5))) (
-        bitOr (bitShiftLeft 48 (b 6)) (bitShiftLeft 56 (b 7))
-      )
-    );
+    bitOr low7 high;
 
   # Read 4 bytes at offset as little-endian 32-bit integer.
   readLE32 =
@@ -94,7 +101,7 @@ let
     let
       b = i: elemAt bytes (offset + i);
     in
-    bitOr (bitOr (b 0) (bitShiftLeft 8 (b 1))) (bitOr (bitShiftLeft 16 (b 2)) (bitShiftLeft 24 (b 3)));
+    (b 0) + (b 1) * 256 + (b 2) * 65536 + (b 3) * 16777216;
 in
 {
   inherit

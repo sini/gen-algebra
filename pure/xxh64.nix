@@ -1,16 +1,25 @@
 # xxh64 hash algorithm — pure Nix implementation.
 # Follows the official xxHash specification (seed=0 default).
+# Uses specialized constant-shift rotations for performance.
 let
   primitives = import ./primitives;
-  inherit (primitives.bits) bitShiftLeft bitShiftRight;
   inherit (primitives.wrapping)
     wrapAdd
     wrapSub
     wrapMul
-    rotl64
+    shr32
+    mask32
+    rotl1
+    rotl7
+    rotl11
+    rotl12
+    rotl18
+    rotl23
+    rotl27
+    rotl31
     ;
   inherit (primitives.bytes) stringToBytes readLE64 readLE32;
-  inherit (primitives.radix) intToHex intToHexPadded;
+  inherit (primitives.radix) intToHexPadded;
   inherit (builtins)
     bitAnd
     bitOr
@@ -18,6 +27,12 @@ let
     elemAt
     length
     ;
+
+  intMax = 9223372036854775807;
+
+  # Inlined right-shifts for avalanche (29, 32, 33)
+  shr29 = x: if x < 0 then (bitAnd x intMax) / 536870912 + 17179869184 else x / 536870912;
+  shr33 = x: if x < 0 then (bitAnd x intMax) / 8589934592 + 1073741824 else x / 8589934592;
 
   # xxh64 primes — unsigned hex values stored as Nix signed 64-bit integers.
   # Spec: https://github.com/Cyan4973/xxHash/blob/dev/doc/xxhash_spec.md
@@ -27,19 +42,19 @@ let
   PRIME64_4 = -8796714831421723037;  # 0x85EBCA77C2B2AE63
   PRIME64_5 = 2870177450012600261;   # 0x27D4EB2F165667C5
 
-  round = acc: lane: wrapMul (rotl64 (wrapAdd acc (wrapMul lane PRIME64_2)) 31) PRIME64_1;
+  round = acc: lane: wrapMul (rotl31 (wrapAdd acc (wrapMul lane PRIME64_2))) PRIME64_1;
 
   mergeAccumulator = acc: accN: wrapAdd (wrapMul (bitXor acc (round 0 accN)) PRIME64_1) PRIME64_4;
 
   avalanche =
     acc:
     let
-      s1 = bitXor acc (bitShiftRight 33 acc);
+      s1 = bitXor acc (shr33 acc);
       s2 = wrapMul s1 PRIME64_2;
-      s3 = bitXor s2 (bitShiftRight 29 s2);
+      s3 = bitXor s2 (shr29 s2);
       s4 = wrapMul s3 PRIME64_3;
     in
-    bitXor s4 (bitShiftRight 32 s4);
+    bitXor s4 (shr32 s4);
 
   # Process remaining bytes after 32-byte stripes
   consumeRemaining =
@@ -52,7 +67,7 @@ let
           let
             k1 = readLE64 bytes off;
             a' = bitXor a (round 0 k1);
-            a'' = wrapAdd (wrapMul (rotl64 a' 27) PRIME64_1) PRIME64_4;
+            a'' = wrapAdd (wrapMul (rotl27 a') PRIME64_1) PRIME64_4;
           in
           consume8 (off + 8) a''
         else
@@ -66,7 +81,7 @@ let
           let
             k1 = readLE32 bytes after8.off;
             a' = bitXor after8.a (wrapMul k1 PRIME64_1);
-            a'' = wrapAdd (wrapMul (rotl64 a' 23) PRIME64_2) PRIME64_3;
+            a'' = wrapAdd (wrapMul (rotl23 a') PRIME64_2) PRIME64_3;
           in
           {
             a = a'';
@@ -82,7 +97,7 @@ let
           let
             b = elemAt bytes off;
             a' = bitXor a (wrapMul b PRIME64_5);
-            a'' = wrapMul (rotl64 a' 11) PRIME64_1;
+            a'' = wrapMul (rotl11 a') PRIME64_1;
           in
           consume1 (off + 1) a''
         else
@@ -113,15 +128,13 @@ let
       acc4 = initAcc4;
     } (builtins.genList (i: i) numStripes);
 
-  mask32 = 4294967295;
-
   # Split 64-bit value into two 32-bit halves for hex conversion,
   # since intToHex only handles non-negative integers.
   toHex16 =
     n:
     let
       lo = bitAnd n mask32;
-      hi = bitAnd (bitShiftRight 32 n) mask32;
+      hi = bitAnd (shr32 n) mask32;
     in
     intToHexPadded 8 hi + intToHexPadded 8 lo;
 
@@ -142,8 +155,8 @@ let
             acc4init = wrapSub seed PRIME64_1;
             numStripes = len / 32;
             s = processStripes bytes numStripes acc1init acc2init acc3init acc4init;
-            converged = wrapAdd (wrapAdd (rotl64 s.acc1 1) (rotl64 s.acc2 7)) (
-              wrapAdd (rotl64 s.acc3 12) (rotl64 s.acc4 18)
+            converged = wrapAdd (wrapAdd (rotl1 s.acc1) (rotl7 s.acc2)) (
+              wrapAdd (rotl12 s.acc3) (rotl18 s.acc4)
             );
             merged = mergeAccumulator (mergeAccumulator (mergeAccumulator (mergeAccumulator converged s.acc1) s.acc2) s.acc3) s.acc4;
           in
