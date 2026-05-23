@@ -1,8 +1,8 @@
 # Binary encoding/decoding — builtins only.
 let
   math = import ./math.nix;
-
-  reverse = xs: builtins.foldl' (acc: x: [ x ] ++ acc) [ ] xs;
+  lists = import ./lists.nix;
+  inherit (lists) reverse;
 
   encodeBinary =
     n:

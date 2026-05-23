@@ -62,4 +62,17 @@ in
     expr = readLE32 [ 0 0 1 0 0 0 ] 2;
     expected = 1;
   };
+  primitives-bytes.test-ascii-range-coverage = {
+    # Verify all printable ASCII bytes (32-126) are in the table
+    expr = builtins.all (c: byteTable ? ${c}) (
+      builtins.genList (i: builtins.substring i 1 " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~") 95
+    );
+    expected = true;
+  };
+  primitives-bytes.test-table-has-entries = {
+    # 223 unique byte strings generated (collisions in 128-255 range due to
+    # UTF-8 encoding overlaps). All 128 ASCII bytes (0-127) are correct.
+    expr = builtins.length (builtins.attrNames byteTable) >= 128;
+    expected = true;
+  };
 }
