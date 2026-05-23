@@ -133,5 +133,15 @@ let
         m2i = m2 i;
       in
       self.combine (m1 (self.combine m2i i)) m2i;
+
+    satisfies = r: required:
+      builtins.all (l: self.has r l) required;
+
+    assertSatisfies =
+      r: required:
+      let
+        missing = builtins.filter (l: !(self.has r l)) required;
+      in
+      if missing == [ ] then r else throw "rec: missing required fields: ${builtins.concatStringsSep ", " missing}";
   };
 in self
