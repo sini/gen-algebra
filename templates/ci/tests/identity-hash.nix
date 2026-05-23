@@ -35,6 +35,6 @@ in
   };
   identity-hash.test-hash-length = {
     expr = builtins.stringLength evalA.config.id_hash;
-    expected = 16;
+    expected = 64;
   };
 }

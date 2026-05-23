@@ -1,7 +1,4 @@
 { lib }:
-let
-  inherit (import ../pure/xxh64.nix) xxh64;
-in
 {
   mkIdentityModule =
     kind:
@@ -58,7 +55,7 @@ in
             identityKeys = if explicitKeys != [ ] then validatedExplicitKeys else reflectedKeys;
             encode = k: "${k}=${toString config.${k}}";
           in
-          xxh64 "${kind}|${lib.concatMapStringsSep "|" encode identityKeys}";
+          builtins.hashString "sha256" "${kind}|${lib.concatMapStringsSep "|" encode identityKeys}";
       };
     };
 }
