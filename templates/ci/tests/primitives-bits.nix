@@ -65,4 +65,33 @@ in
     expr = mod 7 3;
     expected = 1;
   };
+
+  # bitShiftRight edge cases
+  primitives-bits.test-shr-63-negative = {
+    expr = shr 63 (-1);
+    expected = 1;
+  };
+  primitives-bits.test-shr-63-positive = {
+    expr = shr 63 42;
+    expected = 0;
+  };
+  primitives-bits.test-shr-multi-negative = {
+    expr = shr 2 (-4);
+    # -4 unsigned = 0xFFFFFFFFFFFFFFFC, >> 2 = 0x3FFFFFFFFFFFFFFF = 4611686018427387903
+    expected = 4611686018427387903;
+  };
+
+  # Math function tests
+  primitives-bits.test-abs-positive = {
+    expr = (genLib.pure.primitives.math).abs 42;
+    expected = 42;
+  };
+  primitives-bits.test-abs-negative = {
+    expr = (genLib.pure.primitives.math).abs (-7);
+    expected = 7;
+  };
+  primitives-bits.test-abs-zero = {
+    expr = (genLib.pure.primitives.math).abs 0;
+    expected = 0;
+  };
 }

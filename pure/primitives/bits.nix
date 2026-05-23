@@ -48,6 +48,8 @@ let
       bits
     else if shift < 0 then
       bitShiftLeft (-shift) bits
+    else if shift == 63 then
+      if bits < 0 then 1 else 0
     else
       let
         negate = bits < 0;
