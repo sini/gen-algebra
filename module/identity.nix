@@ -1,4 +1,7 @@
 { lib }:
+let
+  inherit (import ../pure/xxh64.nix) xxh64;
+in
 {
   mkIdentityModule =
     kind:
@@ -33,9 +36,7 @@
               # (tested in identity-false-spike.nix). If a nixpkgs update strips
               # custom attrs, fall back to mkIdentityOpt wrapper per spec Open Question #1.
               && (opt.identity or true);
-            reflectedKeys = lib.sort (a: b: a < b) (
-              lib.attrNames (lib.filterAttrs isPrimitive options)
-            );
+            reflectedKeys = lib.sort (a: b: a < b) (lib.attrNames (lib.filterAttrs isPrimitive options));
             # Explicit keys are user intent — validate they exist and are primitive.
             # Throw on invalid keys rather than silently dropping them.
             validatedExplicitKeys =
@@ -57,7 +58,7 @@
             identityKeys = if explicitKeys != [ ] then validatedExplicitKeys else reflectedKeys;
             encode = k: "${k}=${toString config.${k}}";
           in
-          builtins.hashString "sha256" "${kind}|${lib.concatMapStringsSep "|" encode identityKeys}";
+          xxh64 "${kind}|${lib.concatMapStringsSep "|" encode identityKeys}";
       };
     };
 }
