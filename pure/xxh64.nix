@@ -1,12 +1,11 @@
 # xxh64 hash algorithm — pure Nix implementation.
 # Follows the official xxHash specification (seed=0 default).
-# Uses specialized constant-shift rotations for performance.
+# Uses constant-specialized multiplies and rotations for performance.
 let
   primitives = import ./primitives;
   inherit (primitives.wrapping)
     wrapAdd
     wrapSub
-    wrapMul
     shr32
     mask32
     rotl1
@@ -29,30 +28,89 @@ let
     ;
 
   intMax = 9223372036854775807;
+  intMin = -9223372036854775807 - 1;
+  mask16 = 65535;
 
-  # Inlined right-shifts for avalanche (29, 32, 33)
+  # Inlined right-shifts for avalanche (29, 33) and hex output (32 via shr32)
   shr29 = x: if x < 0 then (bitAnd x intMax) / 536870912 + 17179869184 else x / 536870912;
   shr33 = x: if x < 0 then (bitAnd x intMax) / 8589934592 + 1073741824 else x / 8589934592;
 
+  # Inlined left-shifts for multiply assembly
+  shl32 = x:
+    let
+      full = bitAnd x 4294967295;
+      sb = 2147483648;
+      hs = bitAnd full sb != 0;
+      safe = bitAnd full (sb - 1);
+      r = safe * 4294967296;
+    in
+    if hs then r + intMin else r;
+  shl48 = x:
+    let
+      full = bitAnd x mask16;
+      sb = 32768;
+      hs = bitAnd full sb != 0;
+      safe = bitAnd full (sb - 1);
+      r = safe * 281474976710656;
+    in
+    if hs then r + intMin else r;
+
+  # Decompose input x into 16-bit quarters (shared by all mulPN functions)
+  lo16 = x: bitAnd x mask16;
+  hi16 = x: bitAnd (if x < 0 then (bitAnd x intMax) / 65536 + 140737488355328 else x / 65536) mask16;
+
+  # Constant-specialized multiply: pre-split prime into 16-bit quarters so only
+  # the variable operand needs runtime decomposition (saves ~8 ops per call).
+  mkMulConst =
+    b0: b1: b2: b3: a:
+    let
+      aHi = shr32 a;
+      a0 = lo16 a;
+      a1 = hi16 a;
+      a2 = lo16 aHi;
+      a3 = hi16 aHi;
+      c0 = a0 * b0;
+      r0 = lo16 c0;
+      carry0 = c0 / 65536;
+      c1 = a0 * b1 + a1 * b0 + carry0;
+      r1 = lo16 c1;
+      carry1 = c1 / 65536;
+      c2 = a0 * b2 + a1 * b1 + a2 * b0 + carry1;
+      r2 = lo16 c2;
+      carry2 = c2 / 65536;
+      c3 = a0 * b3 + a1 * b2 + a2 * b1 + a3 * b0 + carry2;
+      r3 = lo16 c3;
+    in
+    bitOr (bitOr r0 (r1 * 65536)) (bitOr (shl32 r2) (shl48 r3));
+
   # xxh64 primes — unsigned hex values stored as Nix signed 64-bit integers.
   # Spec: https://github.com/Cyan4973/xxHash/blob/dev/doc/xxhash_spec.md
+  # Each prime is pre-split into 16-bit quarters for the specialized multiply.
+  #                                          q3     q2     q1     q0
+  mulP1 = mkMulConst 51847 34283 31153 40503; # P1 = 0x9E3779B185EBCA87
+  mulP2 = mkMulConst 60239 10196 44605 49842; # P2 = 0xC2B2AE3D27D4EB4F
+  mulP3 = mkMulConst 31225 40503 26545 5718;  # P3 = 0x165667B19E3779F9
+  # Primes used as additive constants (not multiplied on hot path)
   PRIME64_1 = -7046029288634856825;  # 0x9E3779B185EBCA87
   PRIME64_2 = -4417276706812531889;  # 0xC2B2AE3D27D4EB4F
   PRIME64_3 = 1609587929392839161;   # 0x165667B19E3779F9
   PRIME64_4 = -8796714831421723037;  # 0x85EBCA77C2B2AE63
   PRIME64_5 = 2870177450012600261;   # 0x27D4EB2F165667C5
 
-  round = acc: lane: wrapMul (rotl31 (wrapAdd acc (wrapMul lane PRIME64_2))) PRIME64_1;
+  # General wrapMul still needed for non-constant multiplies (e.g., consume1 byte*P5)
+  inherit (primitives.wrapping) wrapMul;
 
-  mergeAccumulator = acc: accN: wrapAdd (wrapMul (bitXor acc (round 0 accN)) PRIME64_1) PRIME64_4;
+  round = acc: lane: mulP1 (rotl31 (wrapAdd acc (mulP2 lane)));
+
+  mergeAccumulator = acc: accN: wrapAdd (mulP1 (bitXor acc (round 0 accN))) PRIME64_4;
 
   avalanche =
     acc:
     let
       s1 = bitXor acc (shr33 acc);
-      s2 = wrapMul s1 PRIME64_2;
+      s2 = mulP2 s1;
       s3 = bitXor s2 (shr29 s2);
-      s4 = wrapMul s3 PRIME64_3;
+      s4 = mulP3 s3;
     in
     bitXor s4 (shr32 s4);
 
@@ -67,7 +125,7 @@ let
           let
             k1 = readLE64 bytes off;
             a' = bitXor a (round 0 k1);
-            a'' = wrapAdd (wrapMul (rotl27 a') PRIME64_1) PRIME64_4;
+            a'' = wrapAdd (mulP1 (rotl27 a')) PRIME64_4;
           in
           consume8 (off + 8) a''
         else
@@ -80,8 +138,8 @@ let
         if after8.off + 4 <= len then
           let
             k1 = readLE32 bytes after8.off;
-            a' = bitXor after8.a (wrapMul k1 PRIME64_1);
-            a'' = wrapAdd (wrapMul (rotl23 a') PRIME64_2) PRIME64_3;
+            a' = bitXor after8.a (mulP1 k1);
+            a'' = wrapAdd (mulP2 (rotl23 a')) PRIME64_3;
           in
           {
             a = a'';
@@ -90,14 +148,14 @@ let
         else
           after8;
 
-      # Process remaining single bytes
+      # Process remaining single bytes — uses general wrapMul since the byte value varies
       consume1 =
         off: a:
         if off < len then
           let
             b = elemAt bytes off;
             a' = bitXor a (wrapMul b PRIME64_5);
-            a'' = wrapMul (rotl11 a') PRIME64_1;
+            a'' = mulP1 (rotl11 a');
           in
           consume1 (off + 1) a''
         else
