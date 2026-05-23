@@ -7,9 +7,14 @@ let
   encodeBinary =
     n:
     let
-      recurse = num: if num == 0 then [ ] else (recurse (num / 2)) ++ [ (num - (num / 2) * 2) ];
+      go =
+        num: acc:
+        if num == 0 then
+          acc
+        else
+          go (num / 2) ([ (num - (num / 2) * 2) ] ++ acc);
     in
-    if n == 0 then [ 0 ] else recurse n;
+    if n == 0 then [ 0 ] else go n [ ];
 
   encodeBinaryBytes =
     n:

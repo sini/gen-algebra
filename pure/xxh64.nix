@@ -55,10 +55,7 @@ let
           in
           consume8 (off + 8) a''
         else
-          {
-            inherit a;
-            off = off;
-          };
+          { inherit a off; };
 
       after8 = consume8 offset acc;
 
@@ -122,13 +119,13 @@ let
     let
       lo = bitAnd n mask32;
       hi = bitAnd (bitShiftRight 32 n) mask32;
+      zeros = "00000000";
       padTo8 =
         s:
         let
           slen = builtins.stringLength s;
-          pad = builtins.concatStringsSep "" (builtins.genList (_: "0") (8 - slen));
         in
-        if slen < 8 then pad + s else s;
+        if slen < 8 then (builtins.substring 0 (8 - slen) zeros) + s else s;
     in
     padTo8 (intToHex hi) + padTo8 (intToHex lo);
 

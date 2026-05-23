@@ -10,7 +10,7 @@ let
     ;
 
   # Lookup table: masksLut[n] = 2^n for n in 0..62
-  masksLut = foldl' (l: n: l ++ [ (2 * elemAt l n) ]) [ 1 ] (genList (x: x) 62);
+  masksLut = genList (n: foldl' (a: _: a * 2) 1 (genList (_: 0) n)) 63;
 
   # Nix signed 64-bit boundaries
   intMin = -9223372036854775807 - 1;

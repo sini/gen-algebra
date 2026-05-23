@@ -16,7 +16,12 @@ let
 
   imap0 = f: xs: genList (i: f i (elemAt xs i)) (length xs);
 
-  reverse = xs: foldl' (acc: x: [ x ] ++ acc) [ ] xs;
+  reverse =
+    xs:
+    let
+      len = length xs;
+    in
+    genList (i: elemAt xs (len - 1 - i)) len;
 
   indicesOfPred =
     pred: haystack:
