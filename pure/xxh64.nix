@@ -19,12 +19,13 @@ let
     length
     ;
 
-  # xxh64 primes (as signed 64-bit)
-  PRIME64_1 = -7046029288634856825;
-  PRIME64_2 = -4417276706812531889;
-  PRIME64_3 = 1609587929392839161;
-  PRIME64_4 = -8796714831421723037;
-  PRIME64_5 = 2870177450012600261;
+  # xxh64 primes — unsigned hex values stored as Nix signed 64-bit integers.
+  # Spec: https://github.com/Cyan4973/xxHash/blob/dev/doc/xxhash_spec.md
+  PRIME64_1 = -7046029288634856825;  # 0x9E3779B185EBCA87
+  PRIME64_2 = -4417276706812531889;  # 0xC2B2AE3D27D4EB4F
+  PRIME64_3 = 1609587929392839161;   # 0x165667B19E3779F9
+  PRIME64_4 = -8796714831421723037;  # 0x85EBCA77C2B2AE63
+  PRIME64_5 = 2870177450012600261;   # 0x27D4EB2F165667C5
 
   round = acc: lane: wrapMul (rotl64 (wrapAdd acc (wrapMul lane PRIME64_2)) 31) PRIME64_1;
 
@@ -114,6 +115,8 @@ let
 
   mask32 = 4294967295;
 
+  # Split 64-bit value into two 32-bit halves for hex conversion,
+  # since intToHex only handles non-negative integers.
   toHex16 =
     n:
     let

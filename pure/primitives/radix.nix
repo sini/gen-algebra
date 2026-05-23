@@ -1,4 +1,6 @@
 # Integer to hexadecimal string conversion — builtins only.
+# intToHex and intToHexPadded require non-negative inputs.
+# Negative values silently return "0" (no sign handling).
 let
   hexDigits = [
     "0"

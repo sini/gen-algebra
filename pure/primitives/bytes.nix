@@ -45,20 +45,24 @@ let
 
   mkUnicodeChar = cp: fromJSON "\"\\u${toHex4 cp}\"";
 
-  # Generate single-byte string for each byte value 0-255.
+  # Map each byte value 0-255 to the Nix string containing exactly that byte.
+  # Strategy: use builtins.fromJSON to create Unicode characters, then extract
+  # individual UTF-8 bytes via substring:
+  #   0-127:   ASCII — direct Unicode codepoint
+  #   128-191: continuation bytes — extract second byte of a 2-byte sequence
+  #   192-255: leading bytes — extract first byte of a 2-byte sequence
+  # Limitation: bytes 0xC0 and 0xC1 are invalid UTF-8 leading bytes (they would
+  # encode codepoints < 128, which must use single-byte form). The formula
+  # produces incorrect strings for these two values. Acceptable because
+  # builtins.toJSON produces pure ASCII (0-127), so these bytes never appear
+  # in gen's identity hashing inputs.
   mkByteString =
     b:
     if b < 128 then
       mkUnicodeChar b
     else if b < 192 then
-      # 128-191: second byte of 2-byte UTF-8 from U+0080-U+00BF
       substring 1 1 (mkUnicodeChar b)
     else
-      # 192-255: first byte of 2-byte UTF-8 from higher codepoints
-      # NOTE: bytes 192-193 (0xC0-0xC1) are invalid UTF-8 leading bytes.
-      # The formula below maps them to wrong values. Since builtins.toJSON
-      # produces pure ASCII (bytes 0-127 only), this is acceptable for
-      # gen's identity hashing use case.
       substring 0 1 (mkUnicodeChar ((b - 194) * 64 + 128));
 
   # Attrset: single-byte string → integer (0-255)

@@ -10,6 +10,9 @@ let
   lo32 = x: bitAnd x mask32;
   # Specialized right-shift-by-32: inlines the sign-bit logic to avoid
   # the general bitShiftRight's elemAt lookups on every call.
+  #   9223372036854775807 = INT_MAX (0x7FFFFFFFFFFFFFFF) — clears sign bit
+  #   4294967296           = 2^32 — integer division performs the shift
+  #   2147483648           = 2^31 — restores bit 63's contribution to upper half
   shr32 =
     x:
     if x < 0 then

@@ -1,4 +1,6 @@
 # Binary encoding/decoding — builtins only.
+# All functions use MSB-first (big-endian) bit ordering:
+# encodeBinary 5 → [1 0 1], where index 0 is the most significant bit.
 let
   math = import ./math.nix;
   lists = import ./lists.nix;

@@ -13,6 +13,7 @@ let
   masksLut = genList (n: foldl' (a: _: a * 2) 1 (genList (_: 0) n)) 63;
 
   # Nix signed 64-bit boundaries
+  # Split to avoid Nix parser overflow on INT_MIN literal
   intMin = -9223372036854775807 - 1;
   intMax = 9223372036854775807;
 
