@@ -227,16 +227,13 @@ Low-level building blocks in `pure/primitives/`, all zero-dependency (`builtins`
 | `bytes` | `stringToBytes`, `readLE64`/`readLE32`, byte lookup table via `builtins.fromJSON` |
 | `radix` | `intToHex`, `intToHexPadded` |
 | `math` | `pow`, `abs`, `mod`, `round` |
-| `encoding` | `encodeBinary`, `decodeBinary` (MSB-first bit lists) |
-| `lists` | `indexOf`, `sublist`, `split`, `lpad`, `rpad`, `reverse`, etc. |
-| `strings` | `charAt`, `indexOfChar`, `removeChars`, `lpadString`, `rpadString` |
-| `trivial` | Boolean ops (`xor`, `nand`, etc.), `imply`, `applyAutoArgs` |
-
 ```nix
 gen.primitives.bits.bitShiftLeft 8 1    # → 256
 gen.primitives.wrapping.wrapMul a b     # → (a * b) mod 2^64
 gen.primitives.bytes.stringToBytes "AB" # → [ 65 66 ]
 ```
+
+Higher-level utilities (lists, strings, encoding, trivial) are in [genx](https://github.com/sini/genx).
 
 ## Module Tier
 
@@ -371,21 +368,14 @@ gen/
       bytes.nix            — stringToBytes, readLE64/32, byte table
       radix.nix            — intToHex, intToHexPadded
       math.nix             — pow, abs, mod, round
-      encoding.nix         — binary encode/decode
-      lists.nix            — indexOf, sublist, split, lpad, rpad, reverse
-      strings.nix          — charAt, indexOfChar, removeChars, pad
-      trivial.nix          — boolean ops, imply, applyAutoArgs
   module/
     default.nix            — exports identity + validation + strict + ref
     identity.nix           — mkIdentityModule (id_hash via SHA-256)
     validate.nix           — mkValidator, runValidators, formatErrors, defaultOnError
     strict.nix             — mkStrictModule (strict freeform rejection)
     ref-type.nix           — mkRefType (cross-registry references)
-  bench/
-    default.nix            — xxh64 vs SHA256 benchmark expressions
-    run.sh                 — benchmark runner (wall-clock timing)
   templates/
-    ci/                    — nix-unit test suite (228 tests)
+    ci/                    — nix-unit test suite
     demo/                  — self-contained demo (search + dedup + validation)
 ```
 

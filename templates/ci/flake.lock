@@ -2,12 +2,12 @@
   "nodes": {
     "gen": {
       "locked": {
-        "dirtyRev": "f4a00bb644cf4a9e6cb1996a8c52e6346d599d54-dirty",
-        "dirtyShortRev": "f4a00bb-dirty",
-        "lastModified": 1779297467,
-        "narHash": "sha256-xj3CSs01nJajIZ7yZCBt10z7IpLTrowOnS03xHkZZcg=",
-        "type": "git",
-        "url": "file:///home/sini/Documents/repos/gen"
+        "lastModified": 1779386011,
+        "narHash": "sha256-BU4pNxqCT7eyI2SpExe6wXoy8mGUGwJ3+B9xM1ejDhw=",
+        "owner": "sini",
+        "repo": "gen",
+        "rev": "129ed5c8db220615c12ce17e8fe2f24eeecd2351",
+        "type": "github"
       },
       "original": {
         "owner": "sini",
