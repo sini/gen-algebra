@@ -84,14 +84,11 @@ let
       b = i: elemAt bytes (offset + i);
       b7 = b 7;
       # Bytes 0-6 produce values < 2^56, safe to combine with bitOr
-      low7 = bitOr
-        (bitOr (bitOr (b 0) ((b 1) * 256))
-               (bitOr ((b 2) * 65536) ((b 3) * 16777216)))
-        (bitOr (bitOr ((b 4) * 4294967296) ((b 5) * 1099511627776))
-               ((b 6) * 281474976710656));
+      low7 = bitOr (bitOr (bitOr (b 0) ((b 1) * 256)) (bitOr ((b 2) * 65536) ((b 3) * 16777216))) (
+        bitOr (bitOr ((b 4) * 4294967296) ((b 5) * 1099511627776)) ((b 6) * 281474976710656)
+      );
       # Byte 7 at position 56: values 0-127 are safe, 128-255 set the sign bit
-      high = if b7 < 128 then b7 * 72057594037927936
-             else (b7 - 128) * 72057594037927936 + intMin;
+      high = if b7 < 128 then b7 * 72057594037927936 else (b7 - 128) * 72057594037927936 + intMin;
     in
     bitOr low7 high;
 
@@ -102,6 +99,27 @@ let
       b = i: elemAt bytes (offset + i);
     in
     (b 0) + (b 1) * 256 + (b 2) * 65536 + (b 3) * 16777216;
+  # Split-representation variants: return { hi; lo; } with both non-negative.
+  # No sign-bit handling needed since each half is at most 4 bytes (max 2^32-1).
+  readLE64split =
+    bytes: offset:
+    let
+      b = i: elemAt bytes (offset + i);
+    in
+    {
+      lo = (b 0) + (b 1) * 256 + (b 2) * 65536 + (b 3) * 16777216;
+      hi = (b 4) + (b 5) * 256 + (b 6) * 65536 + (b 7) * 16777216;
+    };
+
+  readLE32split =
+    bytes: offset:
+    let
+      b = i: elemAt bytes (offset + i);
+    in
+    {
+      lo = (b 0) + (b 1) * 256 + (b 2) * 65536 + (b 3) * 16777216;
+      hi = 0;
+    };
 in
 {
   inherit
@@ -109,6 +127,8 @@ in
     stringToBytes
     readLE64
     readLE32
+    readLE64split
+    readLE32split
     mkByteString
     ;
 }
