@@ -83,7 +83,7 @@ let
             ac2 = splitXor ac (round zero k);
             ac3 = splitAdd (mulP1 (rotl27 ac2)) P4;
           in
-          consume8 (off + 8) ac3
+          consume8 (off + 8) (builtins.deepSeq ac3 ac3)
         else
           { inherit ac off; };
 
@@ -111,13 +111,15 @@ let
             ac2 = splitXor ac (mulByByte b P5);
             ac3 = mulP1 (rotl11 ac2);
           in
-          consume1 (off + 1) ac3
+          consume1 (off + 1) (builtins.deepSeq ac3 ac3)
         else
           ac;
     in
     consume1 after4.off after4.ac;
 
-  # Process 32-byte stripes via fold
+  # Process 32-byte stripes via fold.
+  # deepSeq at fold boundary prevents thunk chain buildup across stripes
+  # (same principle as Haskell's BangPatterns on accumulator fields).
   processStripes =
     bytes: numStripes: initAcc1: initAcc2: initAcc3: initAcc4:
     builtins.foldl'
@@ -125,13 +127,14 @@ let
         state: i:
         let
           off = i * 32;
+          result = {
+            acc1 = round state.acc1 (readLE64split bytes off);
+            acc2 = round state.acc2 (readLE64split bytes (off + 8));
+            acc3 = round state.acc3 (readLE64split bytes (off + 16));
+            acc4 = round state.acc4 (readLE64split bytes (off + 24));
+          };
         in
-        {
-          acc1 = round state.acc1 (readLE64split bytes off);
-          acc2 = round state.acc2 (readLE64split bytes (off + 8));
-          acc3 = round state.acc3 (readLE64split bytes (off + 16));
-          acc4 = round state.acc4 (readLE64split bytes (off + 24));
-        }
+        builtins.deepSeq result result
       )
       {
         acc1 = initAcc1;
