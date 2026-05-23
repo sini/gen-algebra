@@ -43,6 +43,16 @@ in
     expr = shl (-3) 16;
     expected = shr 3 16;
   };
+  primitives-bits.test-shl-62-3 = {
+    # 3 << 62 = 0xC000000000000000 = -4611686018427387904 signed
+    expr = shl 62 3;
+    expected = (-4611686018427387904);
+  };
+  primitives-bits.test-shl-62-2 = {
+    # 2 << 62 = 0x8000000000000000 = intMin
+    expr = shl 62 2;
+    expected = (-9223372036854775807 - 1);
+  };
   primitives-bits.test-pow-basic = {
     expr = pow 2 10;
     expected = 1024;

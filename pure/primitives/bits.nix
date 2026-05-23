@@ -35,9 +35,10 @@ let
         checker = if inv == 63 then intMin else elemAt masksLut inv;
         negate = bitAnd bits checker != 0;
         mult = elemAt masksLut shift;
-        result = masked * mult;
+        valMasked = if negate then bitAnd masked (mask - checker) else masked;
+        result = valMasked * mult;
       in
-      if negate then result + intMin + intMin else result;
+      if negate then result + intMin else result;
 
   bitShiftRight =
     shift: bits:
