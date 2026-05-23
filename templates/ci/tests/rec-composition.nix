@@ -109,4 +109,15 @@ in
     expr = R.select (R.extend R.empty "x" 42) "x";
     expected = 42;
   };
+
+  rec-composition.test-combine-associative-order = {
+    expr =
+      let
+        c = R.fromAttrs { x = 100; w = 4; };
+        left = R.labels (R.combine (R.combine a b) c);
+        right = R.labels (R.combine a (R.combine b c));
+      in
+      left == right;
+    expected = true;
+  };
 }

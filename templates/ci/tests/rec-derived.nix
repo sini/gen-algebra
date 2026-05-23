@@ -87,6 +87,13 @@ in
     expected = 2;
   };
 
+  # upsert on a stacked label: restrict pops one, extend pushes one → depth preserved.
+  # Semantically identical to update on present labels, but also handles absent labels.
+  rec-derived.test-upsert-preserves-stack-depth = {
+    expr = R.depth (R.upsert stacked "x" 99) "x";
+    expected = 2;
+  };
+
   rec-derived.test-rename = {
     expr = R.emit (R.rename (R.extend R.empty "old" 42) "old" "new");
     expected = { new = 42; };
