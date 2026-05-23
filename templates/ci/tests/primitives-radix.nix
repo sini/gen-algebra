@@ -23,4 +23,20 @@ in
     expr = intToHexPadded 4 0;
     expected = "0000";
   };
+  primitives-radix.test-single-digit = {
+    expr = intToHex 15;
+    expected = "f";
+  };
+  primitives-radix.test-one = {
+    expr = intToHex 1;
+    expected = "1";
+  };
+  primitives-radix.test-large = {
+    expr = intToHex 65535;
+    expected = "ffff";
+  };
+  primitives-radix.test-padded-no-truncate = {
+    expr = intToHexPadded 1 255;
+    expected = "ff";
+  };
 }

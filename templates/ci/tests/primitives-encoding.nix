@@ -35,4 +35,32 @@ in
     expr = builtins.length (encodeBinaryBytes 42);
     expected = 8;
   };
+  primitives-encoding.test-encode-one = {
+    expr = encodeBinary 1;
+    expected = [ 1 ];
+  };
+  primitives-encoding.test-encode-power-of-2 = {
+    expr = encodeBinary 8;
+    expected = [ 1 0 0 0 ];
+  };
+  primitives-encoding.test-encode-bytes-value = {
+    expr = encodeBinaryBytes 42;
+    expected = [ 0 0 1 0 1 0 1 0 ];
+  };
+  primitives-encoding.test-encode-bytes-aligned = {
+    expr = encodeBinaryBytes 255;
+    expected = [ 1 1 1 1 1 1 1 1 ];
+  };
+  primitives-encoding.test-decode-direct = {
+    expr = decodeBinary [ 1 0 1 ];
+    expected = 5;
+  };
+  primitives-encoding.test-decode-zero = {
+    expr = decodeBinary [ 0 ];
+    expected = 0;
+  };
+  primitives-encoding.test-decode-empty = {
+    expr = decodeBinary [ ];
+    expected = 0;
+  };
 }

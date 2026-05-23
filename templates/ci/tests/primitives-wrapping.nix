@@ -60,4 +60,28 @@ in
     expr = rotl64 42 0;
     expected = 42;
   };
+  primitives-wrapping.test-neg-intmin = {
+    expr = wrapNeg (-9223372036854775807 - 1);
+    expected = (-9223372036854775807 - 1);
+  };
+  primitives-wrapping.test-mul-zero = {
+    expr = wrapMul 12345 0;
+    expected = 0;
+  };
+  primitives-wrapping.test-mul-one = {
+    expr = wrapMul 12345 1;
+    expected = 12345;
+  };
+  primitives-wrapping.test-mul-neg-one = {
+    expr = wrapMul 42 (-1);
+    expected = -42;
+  };
+  primitives-wrapping.test-sub-overflow = {
+    expr = wrapSub (-9223372036854775807 - 1) 1;
+    expected = 9223372036854775807;
+  };
+  primitives-wrapping.test-rotl64-63 = {
+    expr = rotl64 1 63;
+    expected = (-9223372036854775807 - 1);
+  };
 }

@@ -94,4 +94,19 @@ in
     expr = (genLib.pure.primitives.math).abs 0;
     expected = 0;
   };
+  # shift=63 even value (tests the else-0 path)
+  primitives-bits.test-shl-63-even = {
+    expr = shl 63 2;
+    expected = 0;
+  };
+  # small shift, no negate path
+  primitives-bits.test-shl-10 = {
+    expr = shl 10 1;
+    expected = 1024;
+  };
+  # negative shift on bitShiftRight
+  primitives-bits.test-shr-negative-shift = {
+    expr = shr (-2) 8;
+    expected = shl 2 8;
+  };
 }

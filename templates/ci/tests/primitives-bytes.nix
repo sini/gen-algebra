@@ -75,4 +75,12 @@ in
     expr = builtins.length (builtins.attrNames byteTable) >= 128;
     expected = true;
   };
+  primitives-bytes.test-read-le64-high-byte = {
+    expr = readLE64 [ 0 0 0 0 0 0 0 128 ] 0;
+    expected = (-9223372036854775807 - 1);
+  };
+  primitives-bytes.test-read-le32-max = {
+    expr = readLE32 [ 255 255 255 255 ] 0;
+    expected = 4294967295;
+  };
 }

@@ -3,6 +3,7 @@ let
   inherit (genLib.pure.primitives.strings)
     charAt
     indexOfChar
+    lastIndexOfChar
     removeChars
     lpadString
     rpadString
@@ -41,5 +42,37 @@ in
       "b"
       "c"
     ];
+  };
+  primitives-strings.test-last-index-of-char = {
+    expr = lastIndexOfChar "l" "hello";
+    expected = 3;
+  };
+  primitives-strings.test-last-index-of-char-none = {
+    expr = lastIndexOfChar "z" "hello";
+    expected = null;
+  };
+  primitives-strings.test-char-at-negative = {
+    expr = charAt (-1) "hello";
+    expected = null;
+  };
+  primitives-strings.test-index-of-char-not-found = {
+    expr = indexOfChar "z" "hello";
+    expected = null;
+  };
+  primitives-strings.test-to-chars-empty = {
+    expr = toChars "";
+    expected = [ ];
+  };
+  primitives-strings.test-remove-chars-list = {
+    expr = removeChars [ "a" "e" ] "abcde";
+    expected = "bcd";
+  };
+  primitives-strings.test-lpad-string-noop = {
+    expr = lpadString "0" 2 "hello";
+    expected = "hello";
+  };
+  primitives-strings.test-rpad-string-noop = {
+    expr = rpadString "." 2 "hello";
+    expected = "hello";
   };
 }
