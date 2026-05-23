@@ -11,7 +11,7 @@ Foundational primitives for the gen family: a [Palmer §3 Search monad](https://
 
 gen is a two-tier Nix library:
 
-- **Pure tier** — zero dependencies, `builtins` only. Search monad for indexed state threading with convergence. Intensional function constructors for conservative equality (Palmer §2.2-2.3). Primitives library with bit manipulation, wrapping arithmetic, and a reference xxh64 hash implementation.
+- **Pure tier** — zero dependencies, `builtins` only. Search monad for indexed state threading with convergence. Intensional function constructors for conservative equality (Palmer §2.2-2.3).
 - **Module tier** — takes `{ lib }` from nixpkgs. Identity hashing, validators, strict freeform rejection, and cross-registry reference types for the NixOS module system.
 
 ### Extraction Lineage
@@ -197,51 +197,13 @@ intensionalEq a c  # → false (different key)
 
 Intensional equality powers continuation dedup in `search.converge` — duplicate `mkIntensional` continuations watching the same index key fire only once.
 
-### xxh64
-
-A complete, spec-compliant [xxHash64](https://github.com/Cyan4973/xxHash) implementation in pure Nix. Provided as a reference and demonstration of Nix as a general-purpose language — production identity hashing uses `builtins.hashString "sha256"` instead (a C builtin, ~20x faster for short inputs).
-
-```nix
-gen.xxh64 "hello"        # → "26c7827d889f6da3"
-gen.xxh64WithSeed 42 ""  # → seeded variant
-```
-
-All 21 test vectors match the official `xxhsum` reference implementation. The implementation demonstrates:
-
-- **Split `{hi, lo}` representation** — keeps 64-bit values as two non-negative 32-bit halves, eliminating sign-bit handling from the hot path
-- **Constant-specialized multiplies** — xxh64 prime constants pre-split into 16-bit quarters at definition time
-- **Precomputed rotations** — all 8 rotation amounts used by xxh64 have dedicated functions with baked-in shift constants
-- **Strict accumulator pattern** — `builtins.deepSeq` at fold boundaries prevents thunk chain buildup (inspired by Haskell's `BangPatterns`)
-
-Performance (100k hashes, startup excluded, 8-byte input): ~17µs/hash pure Nix vs ~0.9µs/hash for `builtins.hashString "sha256"` (C builtin).
-
-### Primitives
-
-Low-level building blocks in `pure/primitives/`, all zero-dependency (`builtins` only). Originally extracted from [bird-nix-lib](https://github.com/spikespaz/bird-nix-lib) (Unlicense), rewritten to remove all nixpkgs `lib` dependencies.
-
-| Module | Provides |
-|---|---|
-| `bits` | `bitShiftLeft`, `bitShiftRight` for signed 64-bit integers |
-| `wrapping` | 64-bit modular `wrapAdd`, `wrapSub`, `wrapMul`, `wrapNeg`, `rotl64` |
-| `split` | `{hi, lo}` split arithmetic optimized for xxh64 (splitAdd, splitMul, rotations) |
-| `bytes` | `stringToBytes`, `readLE64`/`readLE32`, byte lookup table via `builtins.fromJSON` |
-| `radix` | `intToHex`, `intToHexPadded` |
-| `math` | `pow`, `abs`, `mod`, `round` |
-```nix
-gen.primitives.bits.bitShiftLeft 8 1    # → 256
-gen.primitives.wrapping.wrapMul a b     # → (a * b) mod 2^64
-gen.primitives.bytes.stringToBytes "AB" # → [ 65 66 ]
-```
-
-Higher-level utilities (lists, strings, encoding, trivial) are in [genx](https://github.com/sini/genx).
-
 ## Module Tier
 
 These primitives require `{ lib }` from nixpkgs. Accessing them without passing `lib` throws a clear error.
 
 ### `mkIdentityModule`
 
-Injects `id_hash` (deterministic SHA-256) and `_identity.keys` into a NixOS module. Uses `builtins.hashString "sha256"` for production identity hashing. Hash is computed from primitive options (str, int, bool), prefixed by kind name.
+Injects `id_hash` (deterministic SHA-256) and `_identity.keys` into a NixOS module. Hash is computed from primitive options (str, int, bool), prefixed by kind name.
 
 ```nix
 # Used inside mkInstanceType / lib.evalModules:
@@ -355,19 +317,10 @@ gen/
   default.nix              — entry point ({ lib ? null }), two-tier dispatch
   flake.nix                — flake outputs (__functor + lib)
   pure/
-    default.nix            — exports search, intensional, xxh64, primitives
+    default.nix            — exports search + intensional + identity
     search.nix             — Palmer §3 Search monad (8 public primitives)
     intensional.nix        — mkIntensional, intensionalEq
     identity.nix           — mkIdentity (standalone hash)
-    xxh64.nix              — pure-Nix xxh64 (reference implementation)
-    primitives/
-      default.nix          — re-exports all primitive modules
-      bits.nix             — bitShiftLeft, bitShiftRight (signed 64-bit)
-      wrapping.nix         — 64-bit modular arithmetic
-      split.nix            — {hi,lo} split arithmetic (xxh64-optimized)
-      bytes.nix            — stringToBytes, readLE64/32, byte table
-      radix.nix            — intToHex, intToHexPadded
-      math.nix             — pow, abs, mod, round
   module/
     default.nix            — exports identity + validation + strict + ref
     identity.nix           — mkIdentityModule (id_hash via SHA-256)
