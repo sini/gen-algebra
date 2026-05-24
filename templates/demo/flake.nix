@@ -1,5 +1,5 @@
 {
-  description = "gen demo: search monad, intensional dedup, validation";
+  description = "gen demo: search monad, intensional dedup, record algebra, validation";
 
   inputs = {
     gen.url = "github:vic/gen";

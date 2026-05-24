@@ -94,10 +94,12 @@ let
 
     # Left-biased combination (⊕). Left's stacks go above right's stacks.
     # Label order: left's order first, then right-only labels.
+    # O(n+m) via set-based dedup instead of linear scan.
     combine =
       a: b:
       let
-        allLabels = a.__order ++ builtins.filter (l: !(builtins.elem l a.__order)) b.__order;
+        aSet = builtins.listToAttrs (builtins.map (l: { name = l; value = true; }) a.__order);
+        allLabels = a.__order ++ builtins.filter (l: !(aSet ? ${l})) b.__order;
         mergeStacks =
           l:
           let
@@ -118,7 +120,10 @@ let
     # Smalltalk direction: delta(parent) ⊕ parent — delta wins
     mixin = delta: parent: self.combine (delta parent) parent;
 
-    # Beta direction: prefix controls inner, suffix provides base
+    # Instantiated Beta inheritance (Bracha 1990 §2.2) with inner = ∅.
+    # The general form C'(inner) = P'(Δ'(inner) ⊕ inner) ⊕ Δ'(inner) is
+    # handled by `compose`, which preserves the inner parameter for further
+    # composition. This is the leaf form suitable for direct application.
     mixinBeta =
       prefix: suffix:
       let

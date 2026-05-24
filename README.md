@@ -197,6 +197,89 @@ intensionalEq a c  # → false (different key)
 
 Intensional equality powers continuation dedup in `search.converge` — duplicate `mkIntensional` continuations watching the same index key fire only once.
 
+### Record Algebra
+
+A record algebra with scoped labels ([Leijen 2005](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/scopedlabels.pdf)) and mixin composition ([Bracha & Cook 1990](https://www.bracha.org/oopsla90.pdf)). Records support duplicate labels via shadow stacks — extending with an existing label pushes a new value, restriction pops it, exposing the previous value.
+
+All operations are in `gen.record` (or `gen.pure.record`). Zero dependencies.
+
+#### Representation
+
+Records use an attrset-with-shadow-stack representation for O(1) select:
+
+```nix
+# Internal: { __entries = { label = [value-stack]; }; __order = [labels]; }
+r = record.fromAttrs { port = 8080; hostname = "localhost"; };
+record.select r "port"      # → 8080
+record.emit r                # → { port = 8080; hostname = "localhost"; }
+```
+
+#### Core primitives (Leijen §2)
+
+```nix
+record.empty                         # empty record
+record.extend r "x" 42              # push value onto label's stack
+record.select r "x"                  # head of stack (throws if absent)
+record.restrict r "x"               # pop head (no-op if absent)
+record.has r "x"                     # bool: label present?
+record.depth r "x"                   # stack depth (0 if absent)
+```
+
+#### Scoped labels
+
+```nix
+# Duplicate labels form a stack — restriction exposes previous values
+base = record.fromAttrs { level = "info"; };
+env  = record.extend base "level" "warn";
+user = record.extend env "level" "debug";
+
+record.select user "level"                                      # → "debug"
+record.select (record.restrict user "level") "level"            # → "warn"
+record.select (record.restrict (record.restrict user "level") "level") "level"  # → "info"
+```
+
+#### Conversion
+
+```nix
+record.emit r                  # → plain attrset (heads only)
+record.emitAll r [ "validators" ]  # → full stacks for listed labels, heads for rest
+record.fromAttrs { a = 1; }   # → record with single-element stacks
+record.show r                  # → "{ x = [2, 1]; y = [3] }" (full stacks)
+record.showCompact r           # → "{ x = 2; y = 3 }" (heads only)
+```
+
+#### Derived operations
+
+```nix
+record.update r "x" 99        # replace head (throws if absent — strict)
+record.upsert r "x" 99        # insert-or-update (no error)
+record.rename r "old" "new"   # move label
+record.labels r                # label names in insertion order
+```
+
+#### Composition (Bracha §2-4)
+
+```nix
+# Left-biased combination (⊕): a's values shadow b's
+record.combine a b
+
+# Smalltalk direction: delta wins over parent
+record.mixin delta parent      # → combine (delta parent) parent
+
+# Beta direction: parent controls, delta extends
+record.mixinBeta prefix suffix
+
+# Associative mixin composition (⋆)
+record.compose m1 m2           # → fun(i) m1(m2(i) ⊕ i) ⊕ m2(i)
+```
+
+#### Row compatibility
+
+```nix
+record.satisfies r [ "port" "hostname" ]      # → bool
+record.assertSatisfies r [ "port" "hostname" ] # → r or throws with missing fields
+```
+
 ## Module Tier
 
 These primitives require `{ lib }` from nixpkgs. Accessing them without passing `lib` throws a clear error.
@@ -317,10 +400,11 @@ gen/
   default.nix              — entry point ({ lib ? null }), two-tier dispatch
   flake.nix                — flake outputs (__functor + lib)
   pure/
-    default.nix            — exports search + intensional + identity
+    default.nix            — exports search + intensional + identity + record
     search.nix             — Palmer §3 Search monad (8 public primitives)
     intensional.nix        — mkIntensional, intensionalEq
     identity.nix           — mkIdentity (standalone hash)
+    rec.nix                — Leijen 2005 record algebra with scoped labels + Bracha 1990 mixin composition
   module/
     default.nix            — exports identity + validation + strict + ref
     identity.nix           — mkIdentityModule (id_hash via SHA-256)
