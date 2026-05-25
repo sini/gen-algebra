@@ -2,26 +2,26 @@
   "nodes": {
     "gen": {
       "locked": {
-        "dirtyRev": "193ca974e1b9488734a55cefd35dd155050f9062-dirty",
-        "dirtyShortRev": "193ca97-dirty",
-        "lastModified": 1779298945,
-        "narHash": "sha256-UgmZd/LJSw72dKT7Cht1LrzQTHIi4KUpSEu1Gelgs0U=",
-        "type": "git",
-        "url": "file:///home/sini/Documents/repos/gen"
+        "lastModified": 1779682607,
+        "narHash": "sha256-AOKtTVMsEuF327yAuf0gIgoBLNmxCP0RjvmdkNcp2t8=",
+        "owner": "sini",
+        "repo": "gen",
+        "rev": "3c1f38835fa12ca954d0fbaacb4ad692c109d947",
+        "type": "github"
       },
       "original": {
-        "owner": "vic",
+        "owner": "sini",
         "repo": "gen",
         "type": "github"
       }
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1778869304,
-        "narHash": "sha256-VdRy3A14M5vIE882DJcaaR+5wrss9Qsg4YNVbr7uj3k=",
-        "rev": "d233902339c02a9c334e7e593de68855ad26c4cb",
+        "lastModified": 1779508470,
+        "narHash": "sha256-OtXX32ZNu00Co+iVgV3ffkJVgVVcc0Sy56DdfJm+UQM=",
+        "rev": "29916453413845e54a65b8a1cf996842300cd299",
         "type": "tarball",
-        "url": "https://releases.nixos.org/nixos/unstable/nixos-26.05pre998534.d233902339c0/nixexprs.tar.xz?lastModified=1778869304&rev=d233902339c02a9c334e7e593de68855ad26c4cb"
+        "url": "https://releases.nixos.org/nixos/unstable/nixos-26.05pre1003640.299164534138/nixexprs.tar.xz?lastModified=1779508470&rev=29916453413845e54a65b8a1cf996842300cd299"
       },
       "original": {
         "type": "tarball",
