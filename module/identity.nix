@@ -29,9 +29,6 @@
               && (opt ? type)
               && lib.elem (opt.type.name or "") primitiveTypeNames
               && !(opt.internal or false)
-              # NB: custom `identity` attr on mkOption survives mergeOptionDecls
-              # (tested in identity-false-spike.nix). If a nixpkgs update strips
-              # custom attrs, fall back to mkIdentityOpt wrapper per spec Open Question #1.
               && (opt.identity or true);
             reflectedKeys = lib.sort (a: b: a < b) (lib.attrNames (lib.filterAttrs isPrimitive options));
             # Explicit keys are user intent — validate they exist and are primitive.

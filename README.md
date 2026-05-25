@@ -1,6 +1,6 @@
 <p align="right">
-  <a href="https://github.com/vic/gen/actions"><img src="https://github.com/vic/gen/actions/workflows/test.yml/badge.svg" alt="CI Status"/></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/vic/gen" alt="License"/></a>
+  <a href="https://github.com/sini/gen/actions"><img src="https://github.com/sini/gen/actions/workflows/test.yml/badge.svg" alt="CI Status"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/sini/gen" alt="License"/></a>
 </p>
 
 # gen — Generic Nix Infrastructure
@@ -45,15 +45,15 @@ gen has zero flake inputs — this lineage shows where each primitive was extrac
 
 ```nix
 {
-  inputs.gen.url = "github:vic/gen";
+  inputs.gen.url = "github:sini/gen";
 
   outputs = { gen, nixpkgs, ... }:
     let
       lib = nixpkgs.lib;
 
       # Pure tier — no lib needed
-      search = gen.lib.search;
-      inherit (gen.lib) mkIntensional intensionalEq;
+      search = gen.pure.search;
+      inherit (gen.pure) mkIntensional intensionalEq;
 
       # Full tier — pass lib for module primitives
       g = gen { inherit lib; };
@@ -183,26 +183,26 @@ s2 = search.on "data" (v: s: search.emit [ "B-saw:${v}" ] s) s1;
 
 #### `mkIntensional`
 
-Create a callable attrset with a `key` for identity comparison and inspectable `closure`.
+Create a callable attrset with a `name` for identity comparison and inspectable `closure`.
 
 ```nix
 fn = mkIntensional "add1" {} (x: x + 1);
 fn 5          # → 6 (callable via __functor)
-fn.key        # → "add1" (program point identity)
+fn.name       # → "add1" (program point identity)
 fn.closure    # → {} (inspectable metadata)
 ```
 
 #### `intensionalEq`
 
-Conservative equality by program point — two functions with the same `key` are considered equal regardless of closure contents.
+Conservative equality by program point — two functions with the same `name` are considered equal regardless of closure contents.
 
 ```nix
 a = mkIntensional "same" {} (x: x);
 b = mkIntensional "same" { different = true; } (y: y);
-intensionalEq a b  # → true (same key)
+intensionalEq a b  # → true (same name)
 
 c = mkIntensional "other" {} (x: x);
-intensionalEq a c  # → false (different key)
+intensionalEq a c  # → false (different name)
 ```
 
 Intensional equality powers continuation dedup in `search.converge` — duplicate `mkIntensional` continuations watching the same index key fire only once.

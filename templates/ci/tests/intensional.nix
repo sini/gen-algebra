@@ -12,8 +12,8 @@ in
     expected = 6;
   };
 
-  intensional.test-mkIntensional-key-is-name = {
-    expr = (mkIntensional "myFn" { x = 1; } (a: a)).key;
+  intensional.test-mkIntensional-name-field = {
+    expr = (mkIntensional "myFn" { x = 1; } (a: a)).name;
     expected = "myFn";
   };
 

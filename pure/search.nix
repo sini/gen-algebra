@@ -1,4 +1,4 @@
-# nix/search.nix — Palmer §3 Search monad. Zero dependencies.
+# pure/search.nix — Palmer §3 Search monad. Zero dependencies.
 let
   empty = {
     index = { };
@@ -43,12 +43,12 @@ let
     if n >= len then [ ] else builtins.genList (i: builtins.elemAt list (i + n)) (len - n);
 
   # Private: dedup intensional continuations (Palmer §3).
-  # Two continuations with the same fn.key (from mkIntensional) watching
+  # Two continuations with the same fn.name (from mkIntensional) watching
   # the same index key are considered identical. Non-intensional fns pass through.
   dedupContinuations =
     conts:
     let
-      keyOf = c: if c.fn ? key then "${c.key}:${c.fn.key}" else null;
+      keyOf = c: if c.fn ? name && c.fn ? closure then "${c.key}:${c.fn.name}" else null;
       go =
         seen: rest:
         if rest == [ ] then

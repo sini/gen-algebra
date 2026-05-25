@@ -1,4 +1,4 @@
-# Standalone identity hash — Palmer §2.2 program point + closure → stable hash.
+# Standalone identity hash — Palmer §2.2 program point + fields → stable hash.
 # No module system dependency. For module-system identity, see module/identity.nix.
 {
   # name: program point (definition site identifier)

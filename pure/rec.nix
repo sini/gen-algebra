@@ -1,5 +1,4 @@
 # Record algebra with scoped labels (Leijen 2005).
-# Self-referencing attrset via let-binding for derived operations (added in later tasks).
 let
   self = {
     empty = { __entries = {}; __order = []; };
