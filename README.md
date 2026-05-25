@@ -29,6 +29,16 @@ den-schema   ──→ gen.mkIdentityModule, gen.mkValidator, gen.mkStrictModule
 
 gen has zero flake inputs — this lineage shows where each primitive was extracted from and who consumes gen downstream, not runtime dependencies.
 
+## Gen Ecosystem
+
+| Library | Role |
+|---------|------|
+| [gen](https://github.com/sini/gen) | Pure primitives (search, record, identity) |
+| [gen-schema](https://github.com/sini/gen-schema) | Typed registries (kinds, instances, collections, refs) |
+| [gen-aspects](https://github.com/sini/gen-aspects) | Aspect types (traits, classification, dispatch) |
+| [gen-graph](https://github.com/sini/gen-graph) | Graph queries (combinators, traversals, fixpoint) |
+| [gen-scope](https://github.com/sini/gen-scope) | Scope graphs (construction, evaluation, resolution) |
+
 ## Quick Start
 
 ### As a flake input
