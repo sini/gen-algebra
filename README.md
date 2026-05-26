@@ -1,9 +1,6 @@
-<p align="right">
-  <a href="https://github.com/sini/gen-algebra/actions"><img src="https://github.com/sini/gen-algebra/actions/workflows/test.yml/badge.svg" alt="CI Status"/></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/sini/gen-algebra" alt="License"/></a>
-</p>
-
 # gen-algebra — Generic Nix Infrastructure
+
+[![CI](https://github.com/sini/gen-algebra/actions/workflows/ci.yml/badge.svg)](https://github.com/sini/gen-algebra/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 Foundational primitives for the gen family: a Palmer §3 search monad, intensional functions, identity hashing, record algebra with scoped labels, validation, strict modules, and cross-registry references.
 
