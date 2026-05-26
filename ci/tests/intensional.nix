@@ -18,7 +18,11 @@ in
   };
 
   intensional.test-mkIntensional-closure-preserved = {
-    expr = (mkIntensional "myFn" { x = 1; y = 2; } (a: a)).closure;
+    expr =
+      (mkIntensional "myFn" {
+        x = 1;
+        y = 2;
+      } (a: a)).closure;
     expected = {
       x = 1;
       y = 2;
@@ -26,7 +30,9 @@ in
   };
 
   intensional.test-intensionalEq-same-key = {
-    expr = intensionalEq (mkIntensional "same" { } (x: x)) (mkIntensional "same" { different = true; } (y: y));
+    expr = intensionalEq (mkIntensional "same" { } (x: x)) (
+      mkIntensional "same" { different = true; } (y: y)
+    );
     expected = true;
   };
 

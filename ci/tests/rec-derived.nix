@@ -15,18 +15,28 @@ in
 
   rec-derived.test-emit-takes-head = {
     expr = R.emit stacked;
-    expected = { x = 2; };
+    expected = {
+      x = 2;
+    };
   };
 
   rec-derived.test-emitAll-full-stacks = {
     expr = R.emitAll stacked [ "x" ];
-    expected = { x = [ 2 1 ]; };
+    expected = {
+      x = [
+        2
+        1
+      ];
+    };
   };
 
   rec-derived.test-emitAll-mixed = {
     expr = R.emitAll (R.extend stacked "y" 3) [ "x" ];
     expected = {
-      x = [ 2 1 ];
+      x = [
+        2
+        1
+      ];
       y = 3;
     };
   };
@@ -49,10 +59,12 @@ in
   };
 
   rec-derived.test-fromAttrs-roundtrip = {
-    expr = R.emit (R.fromAttrs {
-      a = 1;
-      b = 2;
-    });
+    expr = R.emit (
+      R.fromAttrs {
+        a = 1;
+        b = 2;
+      }
+    );
     expected = {
       a = 1;
       b = 2;
@@ -96,7 +108,9 @@ in
 
   rec-derived.test-rename = {
     expr = R.emit (R.rename (R.extend R.empty "old" 42) "old" "new");
-    expected = { new = 42; };
+    expected = {
+      new = 42;
+    };
   };
 
   rec-derived.test-labels = {

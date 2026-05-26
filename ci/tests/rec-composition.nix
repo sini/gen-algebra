@@ -2,8 +2,14 @@
 let
   R = genLib.pure.record;
 
-  a = R.fromAttrs { x = 1; y = 2; };
-  b = R.fromAttrs { x = 10; z = 3; };
+  a = R.fromAttrs {
+    x = 1;
+    y = 2;
+  };
+  b = R.fromAttrs {
+    x = 10;
+    z = 3;
+  };
 in
 {
   rec-composition.test-combine-left-wins = {
@@ -23,13 +29,20 @@ in
 
   rec-composition.test-combine-left-order-first = {
     expr = R.labels (R.combine a b);
-    expected = [ "x" "y" "z" ];
+    expected = [
+      "x"
+      "y"
+      "z"
+    ];
   };
 
   rec-composition.test-combine-associative = {
     expr =
       let
-        c = R.fromAttrs { x = 100; w = 4; };
+        c = R.fromAttrs {
+          x = 100;
+          w = 4;
+        };
         left = R.combine (R.combine a b) c;
         right = R.combine a (R.combine b c);
       in
@@ -40,7 +53,10 @@ in
   rec-composition.test-combine-associative-depth = {
     expr =
       let
-        c = R.fromAttrs { x = 100; w = 4; };
+        c = R.fromAttrs {
+          x = 100;
+          w = 4;
+        };
         left = R.combine (R.combine a b) c;
         right = R.combine a (R.combine b c);
       in
@@ -52,9 +68,11 @@ in
     expr =
       let
         parent = R.fromAttrs { display = "name"; };
-        delta = p: R.fromAttrs {
-          display = "${R.select p "display"}, degree";
-        };
+        delta =
+          p:
+          R.fromAttrs {
+            display = "${R.select p "display"}, degree";
+          };
       in
       R.select (R.mixin delta parent) "display";
     expected = "name, degree";
@@ -63,7 +81,10 @@ in
   rec-composition.test-mixin-preserves-parent-fields = {
     expr =
       let
-        parent = R.fromAttrs { display = "name"; extra = true; };
+        parent = R.fromAttrs {
+          display = "name";
+          extra = true;
+        };
         delta = _p: R.fromAttrs { display = "override"; };
       in
       R.has (R.mixin delta parent) "extra";
@@ -73,9 +94,11 @@ in
   rec-composition.test-mixinBeta-prefix-wins = {
     expr =
       let
-        prefix = inner: R.fromAttrs {
-          display = "prefix-${R.select inner "display"}";
-        };
+        prefix =
+          inner:
+          R.fromAttrs {
+            display = "prefix-${R.select inner "display"}";
+          };
         suffix = R.fromAttrs { display = "suffix"; };
       in
       R.select (R.mixinBeta prefix suffix) "display";
@@ -99,7 +122,10 @@ in
   rec-composition.test-extend-restrict-identity = {
     expr =
       let
-        r = R.fromAttrs { x = 1; y = 2; };
+        r = R.fromAttrs {
+          x = 1;
+          y = 2;
+        };
       in
       R.restrict (R.extend r "z" 3) "z" == r;
     expected = true;
@@ -113,7 +139,10 @@ in
   rec-composition.test-combine-associative-order = {
     expr =
       let
-        c = R.fromAttrs { x = 100; w = 4; };
+        c = R.fromAttrs {
+          x = 100;
+          w = 4;
+        };
         left = R.labels (R.combine (R.combine a b) c);
         right = R.labels (R.combine a (R.combine b c));
       in

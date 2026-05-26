@@ -1,16 +1,25 @@
 { lib, genLib, ... }:
 let
   R = genLib.pure.record;
-  r = R.fromAttrs { port = 8080; hostname = "localhost"; };
+  r = R.fromAttrs {
+    port = 8080;
+    hostname = "localhost";
+  };
 in
 {
   rec-row.test-satisfies-true = {
-    expr = R.satisfies r [ "port" "hostname" ];
+    expr = R.satisfies r [
+      "port"
+      "hostname"
+    ];
     expected = true;
   };
 
   rec-row.test-satisfies-false = {
-    expr = R.satisfies r [ "port" "missing" ];
+    expr = R.satisfies r [
+      "port"
+      "missing"
+    ];
     expected = false;
   };
 
@@ -33,7 +42,12 @@ in
   };
 
   rec-row.test-assertSatisfies-throws = {
-    expr = builtins.tryEval (R.assertSatisfies r [ "port" "missing" ]);
+    expr = builtins.tryEval (
+      R.assertSatisfies r [
+        "port"
+        "missing"
+      ]
+    );
     expected = {
       success = false;
       value = false;
