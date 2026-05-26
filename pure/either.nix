@@ -1,5 +1,5 @@
 # Either combinators — { right = value; } | { left = error; }
-# Used by gen's validation pipeline and downstream consumers.
+# Used by gen-algebra's validation pipeline and downstream consumers.
 {
   right = value: { right = value; };
 

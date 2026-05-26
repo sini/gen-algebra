@@ -39,7 +39,7 @@ let
     if builtins.isList left then
       throw "schema validation failed:\n${formatErrors left}"
     else
-      throw "gen: unexpected validation error: ${builtins.toJSON left}";
+      throw "gen-algebra: unexpected validation error: ${builtins.toJSON left}";
 in
 {
   inherit mkValidator runValidators formatErrors defaultOnError;

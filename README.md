@@ -9,7 +9,7 @@ Foundational primitives for the gen family: a [Palmer §3 Search monad](https://
 
 ## Overview
 
-gen is a two-tier Nix library:
+gen-algebra is a two-tier Nix library:
 
 - **Pure tier** — zero dependencies, `builtins` only. Search monad for indexed state threading with convergence. Intensional function constructors for conservative equality (Palmer §2.2-2.3).
 - **Module tier** — takes `{ lib }` from nixpkgs. Identity hashing, validators, strict freeform rejection, and cross-registry reference types for the NixOS module system.
@@ -17,17 +17,17 @@ gen is a two-tier Nix library:
 ### Extraction Lineage
 
 ```
-flake-aspects ──→ gen.search, gen.mkIntensional, gen.intensionalEq
-den-schema   ──→ gen.mkIdentityModule, gen.mkValidator, gen.mkStrictModule, gen.mkRefType
+flake-aspects ──→ gen-algebra.search, gen-algebra.mkIntensional, gen-algebra.intensionalEq
+den-schema   ──→ gen-algebra.mkIdentityModule, gen-algebra.mkValidator, gen-algebra.mkStrictModule, gen-algebra.mkRefType
                     ↓
-              gen-schema (typed registries on gen primitives)
+              gen-schema (typed registries on gen-algebra primitives)
                     ↓
-              gen-aspects (aspect composition on gen + gen-schema)
+              gen-aspects (aspect composition on gen-algebra + gen-schema)
                     ↓
                    den (system configuration framework)
 ```
 
-gen has zero flake inputs — this lineage shows where each primitive was extracted from and who consumes gen downstream, not runtime dependencies.
+gen-algebra has zero flake inputs — this lineage shows where each primitive was extracted from and who consumes gen-algebra downstream, not runtime dependencies.
 
 ## Gen Ecosystem
 
@@ -70,15 +70,15 @@ let
   lib = (import <nixpkgs> {}).lib;
 
   # Full tier
-  gen = import ./path/to/gen { inherit lib; };
+  gen = import ./path/to/gen-algebra { inherit lib; };
 
   # Pure tier only (no nixpkgs needed)
-  genPure = import ./path/to/gen {};
+  genPure = import ./path/to/gen-algebra {};
 in
 gen.search.empty        # works
 gen.mkValidator         # works
 genPure.search.empty    # works
-genPure.mkValidator     # throws: "gen.mkValidator requires lib — call (import gen { inherit lib; })"
+genPure.mkValidator     # throws: "gen-algebra.mkValidator requires lib — call (import gen-algebra { inherit lib; })"
 ```
 
 ## Pure Tier
@@ -211,7 +211,7 @@ Intensional equality powers continuation dedup in `search.converge` — duplicat
 
 A record algebra with scoped labels ([Leijen 2005](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/scopedlabels.pdf)) and mixin composition ([Bracha & Cook 1990](https://www.bracha.org/oopsla90.pdf)). Records support duplicate labels via shadow stacks — extending with an existing label pushes a new value, restriction pops it, exposing the previous value.
 
-All operations are in `gen.record` (or `gen.pure.record`). Zero dependencies.
+All operations are in `gen-algebra.record` (or `gen-algebra.pure.record`). Zero dependencies.
 
 #### Representation
 
@@ -389,10 +389,10 @@ See [`templates/demo/`](templates/demo/) for a self-contained example exercising
 
 ```bash
 cd templates/demo
-nix eval --override-input gen ../.. .#searchResult
-nix eval --override-input gen ../.. .#dedupResult
-nix eval --override-input gen ../.. .#validationPass
-nix eval --override-input gen ../.. .#validationFail
+nix eval --override-input gen-algebra ../.. .#searchResult
+nix eval --override-input gen-algebra ../.. .#dedupResult
+nix eval --override-input gen-algebra ../.. .#validationPass
+nix eval --override-input gen-algebra ../.. .#validationFail
 ```
 
 ## Testing
@@ -400,13 +400,13 @@ nix eval --override-input gen ../.. .#validationFail
 Tests live in `templates/ci/` using nix-unit:
 
 ```bash
-nix-unit --flake ./templates/ci#tests --override-input gen .
+nix-unit --flake ./templates/ci#tests --override-input gen-algebra .
 ```
 
 ## Architecture
 
 ```
-gen/
+gen-algebra/
   default.nix              — entry point ({ lib ? null }), two-tier dispatch
   flake.nix                — flake outputs (__functor + lib)
   pure/

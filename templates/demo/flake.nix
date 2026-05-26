@@ -1,5 +1,5 @@
 {
-  description = "gen demo: search monad, intensional dedup, record algebra, validation";
+  description = "gen-algebra demo: search monad, intensional dedup, record algebra, validation";
 
   inputs = {
     gen-algebra.url = "github:sini/gen-algebra";
