@@ -2,7 +2,7 @@
 let
   pure = import ./pure;
   module = if lib != null then import ./module { inherit lib; } else null;
-  noLib = name: throw "gen.${name} requires lib — call (import gen { inherit lib; })";
+  noLib = name: throw "gen-algebra.${name} requires lib — call (import gen-algebra { inherit lib; })";
   moduleFallback = {
     mkIdentityModule = noLib "mkIdentityModule";
     mkValidator = noLib "mkValidator";

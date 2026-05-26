@@ -1,9 +1,9 @@
 <p align="right">
-  <a href="https://github.com/sini/gen/actions"><img src="https://github.com/sini/gen/actions/workflows/test.yml/badge.svg" alt="CI Status"/></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/sini/gen" alt="License"/></a>
+  <a href="https://github.com/sini/gen-algebra/actions"><img src="https://github.com/sini/gen-algebra/actions/workflows/test.yml/badge.svg" alt="CI Status"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/sini/gen-algebra" alt="License"/></a>
 </p>
 
-# gen — Generic Nix Infrastructure
+# gen-algebra — Generic Nix Infrastructure
 
 Foundational primitives for the gen family: a [Palmer §3 Search monad](https://dl.acm.org/doi/10.1145/3674634), intensional functions, identity hashing, validation, strict modules, and cross-registry references.
 
@@ -33,7 +33,7 @@ gen has zero flake inputs — this lineage shows where each primitive was extrac
 
 | Library | Role |
 |---------|------|
-| [gen](https://github.com/sini/gen) | Pure primitives (search, record, identity) |
+| [gen-algebra](https://github.com/sini/gen-algebra) | Pure primitives (search, record, identity) |
 | [gen-schema](https://github.com/sini/gen-schema) | Typed registries (kinds, instances, collections, refs) |
 | [gen-aspects](https://github.com/sini/gen-aspects) | Aspect types (traits, classification, dispatch) |
 | [gen-graph](https://github.com/sini/gen-graph) | Graph queries (combinators, traversals, fixpoint) |
@@ -45,7 +45,7 @@ gen has zero flake inputs — this lineage shows where each primitive was extrac
 
 ```nix
 {
-  inputs.gen.url = "github:sini/gen";
+  inputs.gen.url = "github:sini/gen-algebra";
 
   outputs = { gen, nixpkgs, ... }:
     let

@@ -2,15 +2,15 @@
   description = "gen demo: search monad, intensional dedup, record algebra, validation";
 
   inputs = {
-    gen.url = "github:sini/gen";
+    gen-algebra.url = "github:sini/gen-algebra";
     nixpkgs.url = "https://channels.nixos.org/nixos-unstable/nixexprs.tar.xz";
   };
 
   outputs =
-    { gen, nixpkgs, ... }:
+    { nixpkgs, ... }@inputs:
     let
       lib = nixpkgs.lib;
-      g = gen { inherit lib; };
+      g = inputs.gen-algebra { inherit lib; };
       inherit (g) search mkIntensional mkValidator runValidators;
     in
     {

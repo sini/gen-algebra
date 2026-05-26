@@ -1,6 +1,6 @@
 {
   inputs = {
-    gen.url = "github:sini/gen";
+    gen-algebra.url = "github:sini/gen-algebra";
     nixpkgs.url = "https://channels.nixos.org/nixos-unstable/nixexprs.tar.xz";
     nix-unit.url = "github:nix-community/nix-unit";
     nix-unit.inputs.nixpkgs.follows = "nixpkgs";
@@ -8,14 +8,13 @@
 
   outputs =
     {
-      gen,
       nixpkgs,
       nix-unit,
       ...
-    }:
+    }@inputs:
     let
       lib = nixpkgs.lib;
-      genLib = gen { inherit lib; };
+      genLib = inputs.gen-algebra { inherit lib; };
       forAllSystems = lib.genAttrs lib.systems.flakeExposed;
       testFiles = lib.pipe (builtins.readDir ./tests) [
         (lib.filterAttrs (n: v: v == "regular" && lib.hasSuffix ".nix" n))
