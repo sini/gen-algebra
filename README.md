@@ -18,7 +18,6 @@ Foundational primitives for the gen family: a Palmer §3 search monad, intension
 - [Architecture](#architecture)
 - [Testing](#testing)
 - [Theoretical Foundations](#theoretical-foundations)
-- [License](#license)
 
 ## Overview
 
@@ -522,7 +521,3 @@ nix-unit --flake ./templates/ci#tests --override-input gen-algebra .
 | Bracha & Cook (1990) [*Mixin-Based Inheritance*](https://www.bracha.org/oopsla90.pdf) | Implements | Left-biased combination (§2.1 ⊕ operator), Smalltalk-direction mixin (§2.1), Beta-direction mixin (§2.2), associative mixin composition ⋆ (§4) |
 
 **Implements** means the code directly realizes the paper's constructs. All three papers have corresponding primitives in the codebase: `pure/search.nix` and `pure/intensional.nix` for Palmer, `pure/rec.nix` for Leijen and Bracha.
-
-## License
-
-MIT
