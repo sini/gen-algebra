@@ -468,10 +468,10 @@ config.host = "igloo";
 
 ## Demo
 
-See [`templates/demo/`](templates/demo/) for a self-contained example exercising search monad workflow, intensional dedup, record algebra, either combinators, and validation.
+See [`examples/demo/`](examples/demo/) for a self-contained example exercising search monad workflow, intensional dedup, record algebra, either combinators, and validation.
 
 ```bash
-cd templates/demo
+cd examples/demo
 nix eval --override-input gen-algebra ../.. .#searchResult
 nix eval --override-input gen-algebra ../.. .#dedupResult
 nix eval --override-input gen-algebra ../.. .#validationPass
@@ -497,8 +497,8 @@ gen-algebra/
     validate.nix           — mkValidator, runValidators, formatErrors, defaultOnError
     strict.nix             — mkStrictModule (strict freeform rejection)
     ref-type.nix           — mkRefType (cross-registry references)
-  templates/
-    ci/                    — nix-unit test suite
+  ci/                      — nix-unit test suite
+  examples/
     demo/                  — self-contained demo (search + dedup + records + either + validation)
 ```
 
@@ -506,10 +506,10 @@ The pure tier has zero dependencies — consumers needing only search or intensi
 
 ## Testing
 
-Tests live in `templates/ci/` using nix-unit:
+Tests live in `ci/` using nix-unit:
 
 ```bash
-nix-unit --flake ./templates/ci#tests --override-input gen-algebra .
+nix-unit --flake ./ci#tests --override-input gen-algebra .
 ```
 
 ## Theoretical Foundations
