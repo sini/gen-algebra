@@ -213,6 +213,77 @@ let
           value = resolveField k;
         }) allKeys
       );
+
+    # Flatten nested attrset to dot-separated keys.
+    # Halts recursion at fields whose strategy is "recursive".
+    flattenAttrs =
+      {
+        strategies ? { },
+        prefix ? "",
+      }:
+      attrs:
+      let
+        go =
+          pfx: a:
+          builtins.foldl' (
+            acc: k:
+            let
+              v = a.${k};
+              key = if pfx == "" then k else "${pfx}.${k}";
+              strategy = strategies.${key} or null;
+            in
+            if builtins.isAttrs v && v != { } && strategy != "recursive" then
+              acc // go key v
+            else
+              acc // { ${key} = v; }
+          ) { } (builtins.attrNames a);
+      in
+      go prefix attrs;
+
+    # Unflatten dot-separated keys back to nested attrset.
+    unflattenAttrs =
+      flat:
+      let
+        setByPath =
+          path: value:
+          if builtins.length path == 1 then
+            { ${builtins.head path} = value; }
+          else
+            { ${builtins.head path} = setByPath (builtins.tail path) value; };
+        recursiveUpdate =
+          a: b:
+          a
+          // builtins.mapAttrs (
+            k: bv:
+            if a ? ${k} && builtins.isAttrs a.${k} && builtins.isAttrs bv then recursiveUpdate a.${k} bv else bv
+          ) b;
+      in
+      builtins.foldl' (
+        acc: key:
+        let
+          parts = builtins.filter builtins.isString (builtins.split "\\." key);
+          value = flat.${key};
+        in
+        recursiveUpdate acc (setByPath parts value)
+      ) { } (builtins.attrNames flat);
+
+    # foldLayers for nested attrsets: flatten → foldLayers → unflatten.
+    foldNestedLayers =
+      {
+        strategies ? { },
+        defaults ? { },
+        layers ? [ ],
+      }:
+      let
+        flatDefaults = self.flattenAttrs { inherit strategies; } defaults;
+        flatLayers = map (l: self.flattenAttrs { inherit strategies; } l) layers;
+        folded = self.foldLayers {
+          inherit strategies;
+          defaults = flatDefaults;
+          layers = flatLayers;
+        };
+      in
+      self.unflattenAttrs folded;
   };
 in
 self
