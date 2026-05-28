@@ -174,7 +174,8 @@ let
         throw "rec: missing required fields: ${builtins.concatStringsSep ", " missing}";
 
     # Fold ordered layers with per-field merge strategies.
-    # layers: most-specific first. strategies: field → "replace"|"append"|"recursive".
+    # layers: least-specific first (base before overrides), last wins. CSS cascade order.
+    # strategies: field → "replace"|"append"|"recursive".
     foldLayers =
       {
         strategies ? { },
@@ -187,8 +188,6 @@ let
         ) defaults) layers;
         allKeys = builtins.attrNames allKeySet;
 
-        rev = builtins.foldl' (a: x: [ x ] ++ a) [ ];
-
         resolveField =
           name:
           let
@@ -199,11 +198,11 @@ let
           if !hasContrib then
             defaults.${name} or null
           else if strategy == "replace" then
-            (builtins.head contributions).${name}
+            builtins.foldl' (_: l: l.${name}) (defaults.${name} or null) contributions
           else if strategy == "append" then
             builtins.foldl' (acc: l: acc ++ l.${name}) (defaults.${name} or [ ]) contributions
           else if strategy == "recursive" then
-            builtins.foldl' (acc: l: acc // l.${name}) (defaults.${name} or { }) (rev contributions)
+            builtins.foldl' (acc: l: acc // l.${name}) (defaults.${name} or { }) contributions
           else
             throw "rec.foldLayers: unknown strategy '${strategy}' for field '${name}'";
       in

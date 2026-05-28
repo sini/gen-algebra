@@ -312,15 +312,15 @@ Pure tier — `builtins` only, no `lib` dependency.
 record.foldLayers {
   strategies ? {};   # field name → "replace" | "append" | "recursive"
   defaults ? {};     # fallback values for fields absent from all layers
-  layers ? [];       # list of attrsets, most-specific first
+  layers ? [];       # list of attrsets, least-specific first (base before overrides, last wins)
 }
 ```
 
 **Strategy types:**
 
-- **`"replace"`** (default) — first layer providing the field wins. Most-specific-first means highest priority takes precedence.
-- **`"append"`** — list concatenation across all layers that provide the field, starting from `defaults` if present.
-- **`"recursive"`** — nested attrset merge (`//`) across layers, least-specific first so higher-priority layers override individual keys.
+- **`"replace"`** (default) — last layer providing the field wins. CSS cascade order: later overrides earlier.
+- **`"append"`** — list concatenation across all layers in order, starting from `defaults`. Result: `defaults ++ layer1 ++ layer2 ++ ...`
+- **`"recursive"`** — nested attrset merge (`//`) across layers in order. Later layers override earlier keys.
 
 ```nix
 record.foldLayers {
@@ -334,16 +334,16 @@ record.foldLayers {
     settings = { verbose = false; };
   };
   layers = [
-    # layer 0: highest priority (user)
-    { name = "custom"; tags = [ "user" ]; settings = { color = true; }; }
-    # layer 1: lower priority (system)
+    # layer 0: lower priority (system)
     { name = "default"; tags = [ "system" ]; settings = { verbose = true; pager = "less"; }; }
+    # layer 1: highest priority (user)
+    { name = "custom"; tags = [ "user" ]; settings = { color = true; }; }
   ];
 }
 # → {
-#   name = "custom";                                     # replace: first layer wins
-#   tags = [ "base" "user" "system" ];                   # append: defaults ++ all layers
-#   settings = { verbose = true; pager = "less"; color = true; };  # recursive: deep merge
+#   name = "custom";                                     # replace: last layer wins
+#   tags = [ "base" "system" "user" ];                   # append: defaults ++ layers in order
+#   settings = { verbose = true; pager = "less"; color = true; };  # recursive: merge in order
 # }
 ```
 
@@ -435,7 +435,7 @@ modules = [
 # instance.id_hash → deterministic SHA-256 of "host|addr=10.0.1.1|name=igloo"
 ```
 
-Three-layer key selection: explicit `_identity.keys` > per-option `identity = false` > auto-reflection of all non-internal primitives.
+Three-layer key selection: explicit `_identity.keys` > per-option `identity = false` > auto-reflection of all non-internal primitives. Options prefixed with `_` are excluded from reflection (guards against NixOS module system internals like `_module`).
 
 ### `mkValidator` / `runValidators` / `formatErrors` / `defaultOnError`
 

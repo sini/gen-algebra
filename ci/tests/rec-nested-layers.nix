@@ -114,11 +114,11 @@ in
     test-fold-nested-replace = {
       expr = record.foldNestedLayers {
         layers = [
-          { a.b = "high"; }
           {
             a.b = "low";
             a.c = "only-low";
           }
+          { a.b = "high"; }
         ];
       };
       expected = {
@@ -135,20 +135,14 @@ in
           "a.items" = "append";
         };
         layers = [
-          { a.items = [ 1 ]; }
-          {
-            a.items = [
-              2
-              3
-            ];
-          }
+          { a.items = [ "base" ]; }
+          { a.items = [ "override" ]; }
         ];
       };
       expected = {
         a.items = [
-          1
-          2
-          3
+          "base"
+          "override"
         ];
       };
     };

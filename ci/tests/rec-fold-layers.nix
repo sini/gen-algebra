@@ -4,15 +4,15 @@ let
 in
 {
   flake.tests.rec-fold-layers = {
-    test-replace-first-wins = {
+    test-replace-last-wins = {
       expr = foldLayers {
         strategies = { };
         defaults = {
           port = 80;
         };
         layers = [
-          { port = 8080; }
           { port = 443; }
+          { port = 8080; }
         ];
       };
       expected = {
@@ -67,15 +67,15 @@ in
         layers = [
           {
             locations = {
-              root = {
-                proxy = "http://app:8080";
+              api = {
+                proxy = "http://api:3000";
               };
             };
           }
           {
             locations = {
-              api = {
-                proxy = "http://api:3000";
+              root = {
+                proxy = "http://app:8080";
               };
             };
           }
@@ -104,20 +104,20 @@ in
         };
         layers = [
           {
-            port = 8080;
-            tags = [ "web" ];
-          }
-          {
             port = 443;
             tags = [ "ssl" ];
+          }
+          {
+            port = 8080;
+            tags = [ "web" ];
           }
         ];
       };
       expected = {
         port = 8080;
         tags = [
-          "web"
           "ssl"
+          "web"
         ];
       };
     };
@@ -168,19 +168,19 @@ in
           {
             x = {
               a = 1;
+              b = 3;
             };
           }
           {
             x = {
               a = 2;
-              b = 3;
             };
           }
         ];
       };
       expected = {
         x = {
-          a = 1;
+          a = 2;
           b = 3;
         };
       };
