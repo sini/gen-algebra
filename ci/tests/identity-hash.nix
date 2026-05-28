@@ -21,19 +21,19 @@ let
   ];
 in
 {
-  identity-hash.test-same-entity-same-hash = {
+  flake.tests.identity-hash.test-same-entity-same-hash = {
     expr = evalA.config.id_hash == evalB.config.id_hash;
     expected = true;
   };
-  identity-hash.test-different-entity-different-hash = {
+  flake.tests.identity-hash.test-different-entity-different-hash = {
     expr = evalA.config.id_hash == evalC.config.id_hash;
     expected = false;
   };
-  identity-hash.test-hash-is-string = {
+  flake.tests.identity-hash.test-hash-is-string = {
     expr = builtins.isString evalA.config.id_hash;
     expected = true;
   };
-  identity-hash.test-hash-length = {
+  flake.tests.identity-hash.test-hash-length = {
     expr = builtins.stringLength evalA.config.id_hash;
     expected = 64;
   };

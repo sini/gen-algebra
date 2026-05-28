@@ -3,7 +3,7 @@ let
   inherit (genLib) mkIntensional intensionalEq;
 in
 {
-  intensional.test-mkIntensional-is-callable = {
+  flake.tests.intensional.test-mkIntensional-is-callable = {
     expr =
       let
         fn = mkIntensional "add1" { } (x: x + 1);
@@ -12,12 +12,12 @@ in
     expected = 6;
   };
 
-  intensional.test-mkIntensional-name-field = {
+  flake.tests.intensional.test-mkIntensional-name-field = {
     expr = (mkIntensional "myFn" { x = 1; } (a: a)).name;
     expected = "myFn";
   };
 
-  intensional.test-mkIntensional-closure-preserved = {
+  flake.tests.intensional.test-mkIntensional-closure-preserved = {
     expr =
       (mkIntensional "myFn" {
         x = 1;
@@ -29,14 +29,14 @@ in
     };
   };
 
-  intensional.test-intensionalEq-same-key = {
+  flake.tests.intensional.test-intensionalEq-same-key = {
     expr = intensionalEq (mkIntensional "same" { } (x: x)) (
       mkIntensional "same" { different = true; } (y: y)
     );
     expected = true;
   };
 
-  intensional.test-intensionalEq-different-key = {
+  flake.tests.intensional.test-intensionalEq-different-key = {
     expr = intensionalEq (mkIntensional "a" { } (x: x)) (mkIntensional "b" { } (x: x));
     expected = false;
   };

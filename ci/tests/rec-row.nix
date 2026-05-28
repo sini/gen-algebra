@@ -7,7 +7,7 @@ let
   };
 in
 {
-  rec-row.test-satisfies-true = {
+  flake.tests.rec-row.test-satisfies-true = {
     expr = R.satisfies r [
       "port"
       "hostname"
@@ -15,7 +15,7 @@ in
     expected = true;
   };
 
-  rec-row.test-satisfies-false = {
+  flake.tests.rec-row.test-satisfies-false = {
     expr = R.satisfies r [
       "port"
       "missing"
@@ -23,17 +23,17 @@ in
     expected = false;
   };
 
-  rec-row.test-satisfies-empty-requirements = {
+  flake.tests.rec-row.test-satisfies-empty-requirements = {
     expr = R.satisfies r [ ];
     expected = true;
   };
 
-  rec-row.test-satisfies-empty-record = {
+  flake.tests.rec-row.test-satisfies-empty-record = {
     expr = R.satisfies R.empty [ "x" ];
     expected = false;
   };
 
-  rec-row.test-assertSatisfies-passes = {
+  flake.tests.rec-row.test-assertSatisfies-passes = {
     expr = R.emit (R.assertSatisfies r [ "port" ]);
     expected = {
       port = 8080;
@@ -41,7 +41,7 @@ in
     };
   };
 
-  rec-row.test-assertSatisfies-throws = {
+  flake.tests.rec-row.test-assertSatisfies-throws = {
     expr = builtins.tryEval (
       R.assertSatisfies r [
         "port"

@@ -3,7 +3,7 @@ let
   inherit (genLib) mkIdentity;
 in
 {
-  identity-standalone.test-deterministic = {
+  flake.tests.identity-standalone.test-deterministic = {
     expr =
       let
         a = mkIdentity {
@@ -23,7 +23,7 @@ in
     expected = true;
   };
 
-  identity-standalone.test-different-name-different-hash = {
+  flake.tests.identity-standalone.test-different-name-different-hash = {
     expr =
       let
         a = mkIdentity {
@@ -43,7 +43,7 @@ in
     expected = false;
   };
 
-  identity-standalone.test-different-fields-different-hash = {
+  flake.tests.identity-standalone.test-different-fields-different-hash = {
     expr =
       let
         a = mkIdentity {
@@ -63,7 +63,7 @@ in
     expected = false;
   };
 
-  identity-standalone.test-empty-fields = {
+  flake.tests.identity-standalone.test-empty-fields = {
     expr =
       let
         a = mkIdentity { name = "thing"; };
@@ -76,7 +76,7 @@ in
     expected = true;
   };
 
-  identity-standalone.test-prefix-format = {
+  flake.tests.identity-standalone.test-prefix-format = {
     expr = builtins.substring 0 5 (mkIdentity {
       name = "host";
       fields = { };

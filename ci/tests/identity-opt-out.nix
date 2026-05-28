@@ -50,15 +50,15 @@ let
   ];
 in
 {
-  identity-optout.test-identity-false-excluded = {
+  flake.tests.identity-optout.test-identity-false-excluded = {
     expr = evalWithSecret.config.id_hash == evalWithDiffSecret.config.id_hash;
     expected = true;
   };
-  identity-optout.test-identity-false-matches-without = {
+  flake.tests.identity-optout.test-identity-false-matches-without = {
     expr = evalWithSecret.config.id_hash == evalNameOnly.config.id_hash;
     expected = true;
   };
-  identity-optout.test-internal-excluded = {
+  flake.tests.identity-optout.test-internal-excluded = {
     expr = evalWithInternal.config.id_hash == evalNameOnly.config.id_hash;
     expected = true;
   };

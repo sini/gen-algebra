@@ -12,22 +12,22 @@ let
   };
 in
 {
-  rec-composition.test-combine-left-wins = {
+  flake.tests.rec-composition.test-combine-left-wins = {
     expr = R.select (R.combine a b) "x";
     expected = 1;
   };
 
-  rec-composition.test-combine-preserves-right = {
+  flake.tests.rec-composition.test-combine-preserves-right = {
     expr = R.has (R.combine a b) "z";
     expected = true;
   };
 
-  rec-composition.test-combine-stacks = {
+  flake.tests.rec-composition.test-combine-stacks = {
     expr = R.depth (R.combine a b) "x";
     expected = 2;
   };
 
-  rec-composition.test-combine-left-order-first = {
+  flake.tests.rec-composition.test-combine-left-order-first = {
     expr = R.labels (R.combine a b);
     expected = [
       "x"
@@ -36,7 +36,7 @@ in
     ];
   };
 
-  rec-composition.test-combine-associative = {
+  flake.tests.rec-composition.test-combine-associative = {
     expr =
       let
         c = R.fromAttrs {
@@ -50,7 +50,7 @@ in
     expected = true;
   };
 
-  rec-composition.test-combine-associative-depth = {
+  flake.tests.rec-composition.test-combine-associative-depth = {
     expr =
       let
         c = R.fromAttrs {
@@ -64,7 +64,7 @@ in
     expected = true;
   };
 
-  rec-composition.test-mixin-smalltalk-delta-wins = {
+  flake.tests.rec-composition.test-mixin-smalltalk-delta-wins = {
     expr =
       let
         parent = R.fromAttrs { display = "name"; };
@@ -78,7 +78,7 @@ in
     expected = "name, degree";
   };
 
-  rec-composition.test-mixin-preserves-parent-fields = {
+  flake.tests.rec-composition.test-mixin-preserves-parent-fields = {
     expr =
       let
         parent = R.fromAttrs {
@@ -91,7 +91,7 @@ in
     expected = true;
   };
 
-  rec-composition.test-mixinBeta-prefix-wins = {
+  flake.tests.rec-composition.test-mixinBeta-prefix-wins = {
     expr =
       let
         prefix =
@@ -105,7 +105,7 @@ in
     expected = "prefix-suffix";
   };
 
-  rec-composition.test-compose-associative = {
+  flake.tests.rec-composition.test-compose-associative = {
     expr =
       let
         m1 = p: R.extend p "a" 1;
@@ -119,7 +119,7 @@ in
     expected = true;
   };
 
-  rec-composition.test-extend-restrict-identity = {
+  flake.tests.rec-composition.test-extend-restrict-identity = {
     expr =
       let
         r = R.fromAttrs {
@@ -131,12 +131,12 @@ in
     expected = true;
   };
 
-  rec-composition.test-select-after-extend = {
+  flake.tests.rec-composition.test-select-after-extend = {
     expr = R.select (R.extend R.empty "x" 42) "x";
     expected = 42;
   };
 
-  rec-composition.test-combine-associative-order = {
+  flake.tests.rec-composition.test-combine-associative-order = {
     expr =
       let
         c = R.fromAttrs {

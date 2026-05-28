@@ -13,11 +13,11 @@ let
   result = runValidators "host" validators instances;
 in
 {
-  validator-pass.test-right-returned = {
+  flake.tests.validator-pass.test-right-returned = {
     expr = result ? right;
     expected = true;
   };
-  validator-pass.test-right-contains-instances = {
+  flake.tests.validator-pass.test-right-contains-instances = {
     expr = result.right;
     expected = instances;
   };

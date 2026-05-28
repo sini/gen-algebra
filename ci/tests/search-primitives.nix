@@ -3,12 +3,12 @@ let
   inherit (genLib) search;
 in
 {
-  search-primitives.test-insert-lookup-round-trip = {
+  flake.tests.search-primitives.test-insert-lookup-round-trip = {
     expr = search.lookup "k" (search.insert "k" "v" search.empty);
     expected = [ "v" ];
   };
 
-  search-primitives.test-insert-monotonicity = {
+  flake.tests.search-primitives.test-insert-monotonicity = {
     expr =
       let
         s1 = search.insert "k" "a" search.empty;
@@ -21,7 +21,7 @@ in
     ];
   };
 
-  search-primitives.test-has-after-insert = {
+  flake.tests.search-primitives.test-has-after-insert = {
     expr = {
       before = search.has "k" search.empty;
       after = search.has "k" (search.insert "k" "v" search.empty);
@@ -32,7 +32,7 @@ in
     };
   };
 
-  search-primitives.test-emit-accumulation = {
+  flake.tests.search-primitives.test-emit-accumulation = {
     expr =
       let
         s1 = search.emit [
@@ -49,7 +49,7 @@ in
     ];
   };
 
-  search-primitives.test-foldl-state-threading = {
+  flake.tests.search-primitives.test-foldl-state-threading = {
     expr =
       let
         items = [
@@ -79,7 +79,7 @@ in
     };
   };
 
-  search-primitives.test-insert-duplicate-values-accumulate = {
+  flake.tests.search-primitives.test-insert-duplicate-values-accumulate = {
     expr =
       let
         s1 = search.insert "k" "v" search.empty;
@@ -92,12 +92,12 @@ in
     ];
   };
 
-  search-primitives.test-lookup-absent-key = {
+  flake.tests.search-primitives.test-lookup-absent-key = {
     expr = search.lookup "nonexistent" search.empty;
     expected = [ ];
   };
 
-  search-primitives.test-emit-empty-list = {
+  flake.tests.search-primitives.test-emit-empty-list = {
     expr = (search.emit [ ] search.empty).results;
     expected = [ ];
   };

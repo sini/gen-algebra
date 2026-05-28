@@ -3,7 +3,7 @@ let
   inherit (genLib) search mkIntensional;
 in
 {
-  search-converge.test-basic = {
+  flake.tests.search-converge.test-basic = {
     expr =
       let
         s0 = search.insert "k" "v1" search.empty;
@@ -14,7 +14,7 @@ in
     expected = [ "saw:v1" ];
   };
 
-  search-converge.test-multi-round = {
+  flake.tests.search-converge.test-multi-round = {
     expr =
       let
         s0 = search.insert "trigger" "go" search.empty;
@@ -26,7 +26,7 @@ in
     expected = [ "B-saw:from-A" ];
   };
 
-  search-converge.test-stability = {
+  flake.tests.search-converge.test-stability = {
     expr =
       let
         s0 = search.insert "k" "v" search.empty;
@@ -44,7 +44,7 @@ in
     };
   };
 
-  search-converge.test-unwatched-key = {
+  flake.tests.search-converge.test-unwatched-key = {
     expr =
       let
         s0 = search.insert "other" "v" search.empty;
@@ -55,7 +55,7 @@ in
     expected = [ ];
   };
 
-  search-converge.test-dynamic-registration = {
+  flake.tests.search-converge.test-dynamic-registration = {
     expr =
       let
         s0 = search.insert "phase1" "go" search.empty;
@@ -69,7 +69,7 @@ in
     expected = [ "dynamic:data" ];
   };
 
-  search-converge.test-intensional-dedup = {
+  flake.tests.search-converge.test-intensional-dedup = {
     expr =
       let
         counter = mkIntensional "my-counter" { } (v: s: search.emit [ "counted:${v}" ] s);
@@ -82,12 +82,12 @@ in
     expected = [ "counted:v" ];
   };
 
-  search-converge.test-empty = {
+  flake.tests.search-converge.test-empty = {
     expr = search.converge search.empty;
     expected = search.empty;
   };
 
-  search-converge.test-bounded-self-insert = {
+  flake.tests.search-converge.test-bounded-self-insert = {
     expr =
       let
         s0 = search.insert "k" "start" search.empty;
@@ -107,7 +107,7 @@ in
     ];
   };
 
-  search-converge.test-on-before-insert = {
+  flake.tests.search-converge.test-on-before-insert = {
     expr =
       let
         s0 = search.on "k" (v: s: search.emit [ "saw:${v}" ] s) search.empty;
@@ -118,7 +118,7 @@ in
     expected = [ "saw:late-arrival" ];
   };
 
-  search-converge.test-non-intensional-duplicates-fire-independently = {
+  flake.tests.search-converge.test-non-intensional-duplicates-fire-independently = {
     expr =
       let
         fn = v: s: search.emit [ "fired:${v}" ] s;

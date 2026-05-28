@@ -3,7 +3,7 @@ let
   inherit (genLib.pure.record) foldLayers;
 in
 {
-  rec-fold-layers = {
+  flake.tests.rec-fold-layers = {
     test-replace-first-wins = {
       expr = foldLayers {
         strategies = { };
