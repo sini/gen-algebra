@@ -11,7 +11,12 @@
     let
       lib = nixpkgs.lib;
       g = inputs.gen-algebra { inherit lib; };
-      inherit (g) search mkIntensional mkValidator runValidators;
+      inherit (g)
+        search
+        mkIntensional
+        mkValidator
+        runValidators
+        ;
     in
     {
       # Pure tier: search monad workflow
@@ -86,16 +91,19 @@
       scopedLabels =
         let
           R = g.pure.record;
-          base = R.fromAttrs { level = "info"; port = 8080; };
+          base = R.fromAttrs {
+            level = "info";
+            port = 8080;
+          };
           env = R.extend base "level" "warn";
           user = R.extend env "level" "debug";
         in
         {
-          current = R.select user "level";                                           # → "debug"
-          previous = R.select (R.restrict user "level") "level";                     # → "warn"
+          current = R.select user "level"; # → "debug"
+          previous = R.select (R.restrict user "level") "level"; # → "warn"
           original = R.select (R.restrict (R.restrict user "level") "level") "level"; # → "info"
-          depth = R.depth user "level";                                              # → 3
-          emitted = R.emit user;                                                     # → { level = "debug"; port = 8080; }
+          depth = R.depth user "level"; # → 3
+          emitted = R.emit user; # → { level = "debug"; port = 8080; }
         };
 
       # Record algebra: combination and composition (Bracha 1990)
@@ -103,42 +111,65 @@
       recordComposition =
         let
           R = g.pure.record;
-          base = R.fromAttrs { port = 8080; hostname = "localhost"; };
-          overlay = R.fromAttrs { port = 9090; debug = true; };
+          base = R.fromAttrs {
+            port = 8080;
+            hostname = "localhost";
+          };
+          overlay = R.fromAttrs {
+            port = 9090;
+            debug = true;
+          };
 
           # Left-biased combination: overlay wins on port
           combined = R.combine overlay base;
 
           # Smalltalk mixin: delta receives parent, delta's values win
-          delta = parent: R.fromAttrs {
-            metricsPort = (R.select parent "port") + 1000;
-            debug = false;
-          };
+          delta =
+            parent:
+            R.fromAttrs {
+              metricsPort = (R.select parent "port") + 1000;
+              debug = false;
+            };
           mixed = R.mixin delta base;
 
           # emitAll: full stacks for listed labels, heads for rest
-          stacked = R.combine (R.fromAttrs { tags = ["prod"]; }) (R.fromAttrs { tags = ["base"]; port = 80; });
+          stacked = R.combine (R.fromAttrs { tags = [ "prod" ]; }) (
+            R.fromAttrs {
+              tags = [ "base" ];
+              port = 80;
+            }
+          );
         in
         {
-          combinedPort = R.select combined "port";            # → 9090
-          combinedHostname = R.select combined "hostname";    # → "localhost"
-          combinedHasDebug = R.has combined "debug";          # → true
-          mixedMetrics = R.select mixed "metricsPort";        # → 9080
-          mixedDebug = R.select mixed "debug";                # → false (delta wins)
-          labelOrder = R.labels combined;                     # → [ "port" "debug" "hostname" ]
-          fullStacks = R.emitAll stacked [ "tags" ];          # → { tags = [ ["prod"] ["base"] ]; port = 80; }
+          combinedPort = R.select combined "port"; # → 9090
+          combinedHostname = R.select combined "hostname"; # → "localhost"
+          combinedHasDebug = R.has combined "debug"; # → true
+          mixedMetrics = R.select mixed "metricsPort"; # → 9080
+          mixedDebug = R.select mixed "debug"; # → false (delta wins)
+          labelOrder = R.labels combined; # → [ "port" "debug" "hostname" ]
+          fullStacks = R.emitAll stacked [ "tags" ]; # → { tags = [ ["prod"] ["base"] ]; port = 80; }
         };
 
       # Record algebra: row compatibility (Leijen §3.1)
       rowCompatibility =
         let
           R = g.pure.record;
-          r = R.fromAttrs { port = 8080; hostname = "localhost"; protocol = "tcp"; };
+          r = R.fromAttrs {
+            port = 8080;
+            hostname = "localhost";
+            protocol = "tcp";
+          };
         in
         {
-          hasRequired = R.satisfies r [ "port" "hostname" ];     # → true
-          missingField = R.satisfies r [ "port" "nonexistent" ]; # → false
-          emptyReqs = R.satisfies r [ ];                         # → true
+          hasRequired = R.satisfies r [
+            "port"
+            "hostname"
+          ]; # → true
+          missingField = R.satisfies r [
+            "port"
+            "nonexistent"
+          ]; # → false
+          emptyReqs = R.satisfies r [ ]; # → true
         };
 
       # Either: pipe (short-circuit) and collectErrors (accumulate)
@@ -168,11 +199,11 @@
           chained = E.chain (x: if x > 0 then E.right (x * 10) else E.left "neg") (E.right 3);
         in
         {
-          pipeSuccess = pipeResult;       # → { right = 10; }
-          pipeFailure = pipeFail;         # → { left = "must be positive"; }
-          allErrors = collected;          # → { left = [ "must be positive" "must be > -3" ]; }
-          mappedResult = mapped;          # → { right = 42; }
-          chainedResult = chained;        # → { right = 30; }
+          pipeSuccess = pipeResult; # → { right = 10; }
+          pipeFailure = pipeFail; # → { left = "must be positive"; }
+          allErrors = collected; # → { left = [ "must be positive" "must be > -3" ]; }
+          mappedResult = mapped; # → { right = 42; }
+          chainedResult = chained; # → { right = 30; }
         };
     };
 }

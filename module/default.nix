@@ -7,7 +7,12 @@ let
 in
 {
   inherit (identity) mkIdentityModule;
-  inherit (validate) mkValidator runValidators formatErrors defaultOnError;
+  inherit (validate)
+    mkValidator
+    runValidators
+    formatErrors
+    defaultOnError
+    ;
   inherit (strict) mkStrictModule;
   inherit (refType) mkRefType;
 }

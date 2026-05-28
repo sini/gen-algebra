@@ -1,4 +1,6 @@
-{ lib ? null }:
+{
+  lib ? null,
+}:
 let
   pure = import ./pure;
   module = if lib != null then import ./module { inherit lib; } else null;

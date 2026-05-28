@@ -302,6 +302,51 @@ record.satisfies r [ "port" "hostname" ]      # → bool
 record.assertSatisfies r [ "port" "hostname" ] # → r or throws with missing fields
 ```
 
+#### `foldLayers`
+
+Fold ordered layers with per-field merge strategies. Useful for composing configuration from multiple priority tiers (e.g. defaults, system, user overrides) where different fields need different merge semantics.
+
+Pure tier — `builtins` only, no `lib` dependency.
+
+```nix
+record.foldLayers {
+  strategies ? {};   # field name → "replace" | "append" | "recursive"
+  defaults ? {};     # fallback values for fields absent from all layers
+  layers ? [];       # list of attrsets, most-specific first
+}
+```
+
+**Strategy types:**
+
+- **`"replace"`** (default) — first layer providing the field wins. Most-specific-first means highest priority takes precedence.
+- **`"append"`** — list concatenation across all layers that provide the field, starting from `defaults` if present.
+- **`"recursive"`** — nested attrset merge (`//`) across layers, least-specific first so higher-priority layers override individual keys.
+
+```nix
+record.foldLayers {
+  strategies = {
+    tags = "append";
+    settings = "recursive";
+    # name uses default "replace"
+  };
+  defaults = {
+    tags = [ "base" ];
+    settings = { verbose = false; };
+  };
+  layers = [
+    # layer 0: highest priority (user)
+    { name = "custom"; tags = [ "user" ]; settings = { color = true; }; }
+    # layer 1: lower priority (system)
+    { name = "default"; tags = [ "system" ]; settings = { verbose = true; pager = "less"; }; }
+  ];
+}
+# → {
+#   name = "custom";                                     # replace: first layer wins
+#   tags = [ "base" "user" "system" ];                   # append: defaults ++ all layers
+#   settings = { verbose = true; pager = "less"; color = true; };  # recursive: deep merge
+# }
+```
+
 ### Either Combinators
 
 Short-circuit and accumulating error handling via `{ right = value; }` | `{ left = error; }`. Zero dependencies.
@@ -487,7 +532,7 @@ gen-algebra/
     intensional.nix        — mkIntensional, intensionalEq
     identity.nix           — mkIdentity (standalone hash)
     either.nix             — Either combinators (right, left, pipe, collectErrors, mapR, chain)
-    rec.nix                — Leijen §2 record algebra with scoped labels + Bracha §2-4 mixin composition
+    rec.nix                — Leijen §2 record algebra with scoped labels + Bracha §2-4 mixin composition + foldLayers
   module/
     default.nix            — exports identity + validation + strict + ref
     identity.nix           — mkIdentityModule (id_hash via SHA-256)

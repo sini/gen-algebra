@@ -30,9 +30,7 @@ let
 
   formatErrors =
     failures:
-    lib.concatMapStringsSep "\n" (
-      f: "  ${f.kind} '${f.name}': ${f.validator} — ${f.message}"
-    ) failures;
+    lib.concatMapStringsSep "\n" (f: "  ${f.kind} '${f.name}': ${f.validator} — ${f.message}") failures;
 
   defaultOnError =
     left:
@@ -42,5 +40,10 @@ let
       throw "gen-algebra: unexpected validation error: ${builtins.toJSON left}";
 in
 {
-  inherit mkValidator runValidators formatErrors defaultOnError;
+  inherit
+    mkValidator
+    runValidators
+    formatErrors
+    defaultOnError
+    ;
 }

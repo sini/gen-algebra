@@ -1,52 +1,64 @@
 # Record algebra with scoped labels (Leijen 2005).
 let
   self = {
-    empty = { __entries = {}; __order = []; };
+    empty = {
+      __entries = { };
+      __order = [ ];
+    };
 
-    extend = r: l: v:
+    extend =
+      r: l: v:
       let
-        existing = r.__entries.${l} or [];
-        newOrder = if existing == [] then r.__order ++ [ l ] else r.__order;
-      in {
-        __entries = r.__entries // { ${l} = [ v ] ++ existing; };
+        existing = r.__entries.${l} or [ ];
+        newOrder = if existing == [ ] then r.__order ++ [ l ] else r.__order;
+      in
+      {
+        __entries = r.__entries // {
+          ${l} = [ v ] ++ existing;
+        };
         __order = newOrder;
       };
 
-    select = r: l:
-      if r.__entries ? ${l} && r.__entries.${l} != []
-      then builtins.head r.__entries.${l}
-      else throw "rec: no field '${l}'";
+    select =
+      r: l:
+      if r.__entries ? ${l} && r.__entries.${l} != [ ] then
+        builtins.head r.__entries.${l}
+      else
+        throw "rec: no field '${l}'";
 
-    restrict = r: l:
-      if !(r.__entries ? ${l}) then r
+    restrict =
+      r: l:
+      if !(r.__entries ? ${l}) then
+        r
       else
         let
           tail = builtins.tail r.__entries.${l};
         in
-        if tail == [] then {
-          __entries = builtins.removeAttrs r.__entries [ l ];
-          __order = builtins.filter (x: x != l) r.__order;
-        } else {
-          __entries = r.__entries // { ${l} = tail; };
-          __order = r.__order;
-        };
+        if tail == [ ] then
+          {
+            __entries = builtins.removeAttrs r.__entries [ l ];
+            __order = builtins.filter (x: x != l) r.__order;
+          }
+        else
+          {
+            __entries = r.__entries // {
+              ${l} = tail;
+            };
+            __order = r.__order;
+          };
 
-    has = r: l: r.__entries ? ${l} && r.__entries.${l} != [];
+    has = r: l: r.__entries ? ${l} && r.__entries.${l} != [ ];
 
-    depth = r: l:
-      if r.__entries ? ${l} then builtins.length r.__entries.${l}
-      else 0;
+    depth = r: l: if r.__entries ? ${l} then builtins.length r.__entries.${l} else 0;
 
-    emit = r:
-      builtins.mapAttrs (_: builtins.head) r.__entries;
+    emit = r: builtins.mapAttrs (_: builtins.head) r.__entries;
 
-    emitAll = r: fullLabels:
+    emitAll =
+      r: fullLabels:
       let
         isFull = l: builtins.elem l fullLabels;
       in
-      builtins.mapAttrs (
-        l: stack: if isFull l then stack else builtins.head stack
-      ) r.__entries;
+      builtins.mapAttrs (l: stack: if isFull l then stack else builtins.head stack) r.__entries;
 
     fromAttrs =
       attrs:
@@ -60,18 +72,23 @@ let
 
     update =
       r: l: v:
-      if !(r.__entries ? ${l}) || r.__entries.${l} == [ ]
-      then throw "rec: no field '${l}' to update"
-      else {
-        __entries = r.__entries // {
-          ${l} = [ v ] ++ builtins.tail r.__entries.${l};
+      if !(r.__entries ? ${l}) || r.__entries.${l} == [ ] then
+        throw "rec: no field '${l}' to update"
+      else
+        {
+          __entries = r.__entries // {
+            ${l} = [ v ] ++ builtins.tail r.__entries.${l};
+          };
+          __order = r.__order;
         };
-        __order = r.__order;
-      };
 
-    upsert = r: l: v: self.extend (self.restrict r l) l v;
+    upsert =
+      r: l: v:
+      self.extend (self.restrict r l) l v;
 
-    rename = r: old: new: self.extend (self.restrict r old) new (self.select r old);
+    rename =
+      r: old: new:
+      self.extend (self.restrict r old) new (self.select r old);
 
     labels = r: r.__order;
 
@@ -79,8 +96,7 @@ let
       r:
       let
         showStack =
-          l: stack:
-          "${l} = [${builtins.concatStringsSep ", " (builtins.map (v: builtins.toJSON v) stack)}]";
+          l: stack: "${l} = [${builtins.concatStringsSep ", " (builtins.map (v: builtins.toJSON v) stack)}]";
       in
       "{ ${builtins.concatStringsSep "; " (builtins.map (l: showStack l r.__entries.${l}) r.__order)} }";
 
@@ -97,7 +113,12 @@ let
     combine =
       a: b:
       let
-        aSet = builtins.listToAttrs (builtins.map (l: { name = l; value = true; }) a.__order);
+        aSet = builtins.listToAttrs (
+          builtins.map (l: {
+            name = l;
+            value = true;
+          }) a.__order
+        );
         allLabels = a.__order ++ builtins.filter (l: !(aSet ? ${l})) b.__order;
         mergeStacks =
           l:
@@ -106,10 +127,12 @@ let
             bStack = b.__entries.${l} or [ ];
           in
           aStack ++ bStack;
-        entries = builtins.listToAttrs (builtins.map (l: {
-          name = l;
-          value = mergeStacks l;
-        }) allLabels);
+        entries = builtins.listToAttrs (
+          builtins.map (l: {
+            name = l;
+            value = mergeStacks l;
+          }) allLabels
+        );
       in
       {
         __entries = entries;
@@ -138,14 +161,58 @@ let
       in
       self.combine (m1 (self.combine m2i i)) m2i;
 
-    satisfies = r: required:
-      builtins.all (l: self.has r l) required;
+    satisfies = r: required: builtins.all (l: self.has r l) required;
 
     assertSatisfies =
       r: required:
       let
         missing = builtins.filter (l: !(self.has r l)) required;
       in
-      if missing == [ ] then r else throw "rec: missing required fields: ${builtins.concatStringsSep ", " missing}";
+      if missing == [ ] then
+        r
+      else
+        throw "rec: missing required fields: ${builtins.concatStringsSep ", " missing}";
+
+    # Fold ordered layers with per-field merge strategies.
+    # layers: most-specific first. strategies: field → "replace"|"append"|"recursive".
+    foldLayers =
+      {
+        strategies ? { },
+        defaults ? { },
+        layers ? [ ],
+      }:
+      let
+        allKeySet = builtins.foldl' (acc: l: acc // builtins.mapAttrs (_: _: true) l) (builtins.mapAttrs (
+          _: _: true
+        ) defaults) layers;
+        allKeys = builtins.attrNames allKeySet;
+
+        rev = builtins.foldl' (a: x: [ x ] ++ a) [ ];
+
+        resolveField =
+          name:
+          let
+            strategy = strategies.${name} or "replace";
+            contributions = builtins.filter (l: l ? ${name}) layers;
+            hasContrib = contributions != [ ];
+          in
+          if !hasContrib then
+            defaults.${name} or null
+          else if strategy == "replace" then
+            (builtins.head contributions).${name}
+          else if strategy == "append" then
+            builtins.foldl' (acc: l: acc ++ l.${name}) (defaults.${name} or [ ]) contributions
+          else if strategy == "recursive" then
+            builtins.foldl' (acc: l: acc // l.${name}) (defaults.${name} or { }) (rev contributions)
+          else
+            throw "rec.foldLayers: unknown strategy '${strategy}' for field '${name}'";
+      in
+      builtins.listToAttrs (
+        builtins.map (k: {
+          name = k;
+          value = resolveField k;
+        }) allKeys
+      );
   };
-in self
+in
+self
