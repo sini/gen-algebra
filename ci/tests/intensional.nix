@@ -1,6 +1,6 @@
-{ lib, genLib, ... }:
+{ lib, genAlgebra, ... }:
 let
-  inherit (genLib) mkIntensional intensionalEq;
+  inherit (genAlgebra) mkIntensional intensionalEq;
 in
 {
   flake.tests.intensional.test-mkIntensional-is-callable = {

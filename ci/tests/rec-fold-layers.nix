@@ -1,6 +1,6 @@
-{ lib, genLib, ... }:
+{ lib, genAlgebra, ... }:
 let
-  inherit (genLib.pure.record) foldLayers;
+  inherit (genAlgebra.pure.record) foldLayers;
 in
 {
   flake.tests.rec-fold-layers = {

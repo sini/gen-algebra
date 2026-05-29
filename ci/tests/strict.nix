@@ -1,6 +1,6 @@
-{ lib, genLib, ... }:
+{ lib, genAlgebra, ... }:
 let
-  inherit (genLib) mkStrictModule;
+  inherit (genAlgebra) mkStrictModule;
   eval = lib.evalModules {
     modules = [
       (mkStrictModule "host")

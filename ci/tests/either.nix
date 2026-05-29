@@ -1,6 +1,6 @@
-{ lib, genLib, ... }:
+{ lib, genAlgebra, ... }:
 let
-  inherit (genLib) either;
+  inherit (genAlgebra) either;
 in
 {
   flake.tests.either.test-right-constructor = {

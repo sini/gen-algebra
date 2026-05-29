@@ -1,6 +1,6 @@
-{ lib, genLib, ... }:
+{ lib, genAlgebra, ... }:
 let
-  inherit (genLib) mkValidator runValidators;
+  inherit (genAlgebra) mkValidator runValidators;
   validators = [
     (mkValidator "has-addr" ({ addr, ... }: addr != "") "addr must not be empty")
   ];

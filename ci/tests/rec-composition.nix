@@ -1,6 +1,6 @@
-{ lib, genLib, ... }:
+{ lib, genAlgebra, ... }:
 let
-  R = genLib.pure.record;
+  R = genAlgebra.pure.record;
 
   a = R.fromAttrs {
     x = 1;

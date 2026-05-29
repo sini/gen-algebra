@@ -1,6 +1,6 @@
-{ lib, genLib, ... }:
+{ lib, genAlgebra, ... }:
 let
-  inherit (genLib) search;
+  inherit (genAlgebra) search;
 in
 {
   flake.tests.search-primitives.test-insert-lookup-round-trip = {

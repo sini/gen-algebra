@@ -1,6 +1,6 @@
-{ lib, genLib, ... }:
+{ lib, genAlgebra, ... }:
 let
-  inherit (genLib) record;
+  inherit (genAlgebra) record;
 in
 {
   flake.tests.rec-nested-layers = {

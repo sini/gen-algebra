@@ -8,12 +8,12 @@
     inputs@{ gen, nixpkgs, ... }:
     let
       inherit (nixpkgs) lib;
-      genLib = import ../. { inherit lib; };
+      genAlgebra = import ../. { inherit lib; };
     in
     gen.lib.mkCi {
       inherit inputs;
       name = "gen-algebra";
       testModules = ./tests;
-      specialArgs = { inherit genLib; };
+      specialArgs = { inherit genAlgebra; };
     };
 }

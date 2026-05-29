@@ -1,6 +1,6 @@
-{ lib, genLib, ... }:
+{ lib, genAlgebra, ... }:
 let
-  R = genLib.pure.record;
+  R = genAlgebra.pure.record;
   r = R.extend (R.extend R.empty "x" 1) "y" 2;
   stacked = R.extend (R.extend R.empty "x" 1) "x" 2;
 in

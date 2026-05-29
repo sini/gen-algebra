@@ -1,6 +1,6 @@
-{ lib, genLib, ... }:
+{ lib, genAlgebra, ... }:
 let
-  inherit (genLib) search mkIntensional;
+  inherit (genAlgebra) search mkIntensional;
 in
 {
   flake.tests.search-converge.test-basic = {

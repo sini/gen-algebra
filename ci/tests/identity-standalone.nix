@@ -1,6 +1,6 @@
-{ lib, genLib, ... }:
+{ lib, genAlgebra, ... }:
 let
-  inherit (genLib) mkIdentity;
+  inherit (genAlgebra) mkIdentity;
 in
 {
   flake.tests.identity-standalone.test-deterministic = {

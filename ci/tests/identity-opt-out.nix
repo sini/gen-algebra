@@ -1,6 +1,6 @@
-{ lib, genLib, ... }:
+{ lib, genAlgebra, ... }:
 let
-  inherit (genLib) mkIdentityModule;
+  inherit (genAlgebra) mkIdentityModule;
   mkEval =
     kind: modules:
     lib.evalModules {
