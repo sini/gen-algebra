@@ -213,6 +213,91 @@ let
         }) allKeys
       );
 
+    # Like foldLayers, but also returns a per-field provenance trace, in one pass.
+    # value is byte-identical to (foldLayers { inherit strategies defaults layers; }).
+    # layerNames: string labels aligned 1:1 with layers (least-specific first).
+    # provenance.<field> = ordered [{ layer; value; }] — default first (when present),
+    # then each contributing layer. For "replace" the LAST entry is effective; the
+    # leading default is informational. For "append"/"recursive" the listed values
+    # are the accumulation.
+    foldLayersTraced =
+      {
+        strategies ? { },
+        defaults ? { },
+        layers ? [ ],
+        layerNames ? [ ],
+        defaultLabel ? "default",
+      }:
+      assert builtins.length layerNames == builtins.length layers;
+      let
+        nLayers = builtins.length layers;
+        indexed = builtins.genList (i: {
+          name = builtins.elemAt layerNames i;
+          layer = builtins.elemAt layers i;
+        }) nLayers;
+
+        allKeySet = builtins.foldl' (acc: l: acc // builtins.mapAttrs (_: _: true) l) (builtins.mapAttrs (
+          _: _: true
+        ) defaults) layers;
+        allKeys = builtins.attrNames allKeySet;
+
+        resolve =
+          name:
+          let
+            strategy = strategies.${name} or "replace";
+            contribs = builtins.filter (e: e.layer ? ${name}) indexed;
+            hasContrib = contribs != [ ];
+            hasDefault = defaults ? ${name};
+            value =
+              if !hasContrib then
+                defaults.${name} or null
+              else if strategy == "replace" then
+                builtins.foldl' (_: e: e.layer.${name}) (defaults.${name} or null) contribs
+              else if strategy == "append" then
+                builtins.foldl' (acc: e: acc ++ e.layer.${name}) (defaults.${name} or [ ]) contribs
+              else if strategy == "recursive" then
+                builtins.foldl' (acc: e: acc // e.layer.${name}) (defaults.${name} or { }) contribs
+              else
+                throw "rec.foldLayersTraced: unknown strategy '${strategy}' for field '${name}'";
+            defaultEntry =
+              if hasDefault then
+                [
+                  {
+                    layer = defaultLabel;
+                    value = defaults.${name};
+                  }
+                ]
+              else if !hasContrib then
+                [
+                  {
+                    layer = defaultLabel;
+                    value = null;
+                  }
+                ]
+              else
+                [ ];
+            contribEntries = builtins.map (e: {
+              layer = e.name;
+              value = e.layer.${name};
+            }) contribs;
+          in
+          {
+            inherit value;
+            provenance = defaultEntry ++ contribEntries;
+          };
+
+        resolved = builtins.listToAttrs (
+          builtins.map (k: {
+            name = k;
+            value = resolve k;
+          }) allKeys
+        );
+      in
+      {
+        value = builtins.mapAttrs (_: r: r.value) resolved;
+        provenance = builtins.mapAttrs (_: r: r.provenance) resolved;
+      };
+
     # Flatten nested attrset to dot-separated keys.
     # Halts recursion at fields whose strategy is "recursive".
     flattenAttrs =
