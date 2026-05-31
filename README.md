@@ -191,7 +191,7 @@ s2 = search.on "data" (v: s: search.emit [ "B-saw:${v}" ] s) s1;
 
 ### Intensional Functions
 
-Palmer §2.2-2.3: function wrappers with program-point identity for conservative equality.
+Palmer §2.2-2.3: function wrappers with program-point identity. gen implements the *structure* of Palmer's intensional functions (the three eliminators below); equality is **name-only** — a deliberate over-approximation, see [`intensionalEq`](#intensionaleq).
 
 #### `mkIntensional`
 
@@ -206,7 +206,7 @@ fn.closure    # → {} (inspectable metadata)
 
 #### `intensionalEq`
 
-Conservative equality by program point — two functions with the same `name` are considered equal regardless of closure contents.
+**Name-only** equality by program point — two functions with the same `name` are equal regardless of closure. This is a deliberate *over-approximation*: it is a **superset** of Palmer's conservative equality (§2.3 Fig 5, which also requires equal closures), declaring *more* pairs equal, not fewer. It is sound under the discipline that callers fold any distinguishing data into the `name` (e.g. `"myPolicy:${hostName}"`). Note `closure` here is *programmer-declared* inspect data, not the compiler-extracted environment Palmer's Theorem 1 assumes — so the theorem's soundness does not transfer; gen relies on the naming discipline instead.
 
 ```nix
 a = mkIntensional "same" {} (x: x);
@@ -558,8 +558,8 @@ nix-unit --flake ./ci#tests --override-input gen-algebra .
 
 | Paper | Relationship | What |
 |-------|-------------|------|
-| Palmer et al. (2024) [*Intensional Functions*](https://dl.acm.org/doi/10.1145/3689714) | Implements | Search monad with continuation dedup (§3), intensional identity via program-point + closure (§2.2-2.3), conservative equality (§5.3) |
+| Palmer et al. (2024) [*Intensional Functions*](https://dl.acm.org/doi/10.1145/3689714) | Implements structure / informed by | Search monad with name-keyed continuation dedup (§3); the three intensional eliminators `__functor`/`name`/`closure` (§2.2-2.3). Equality + dedup are **name-only** — a deliberate over-approximation of Palmer's name+closure conservative equality (§2.3 Fig 5), not the Theorem-1 result (gen's `closure` is programmer-declared, not compiler-extracted). |
 | Leijen (2005) [*Extensible Records with Scoped Labels*](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/scopedlabels.pdf) | Implements | Record algebra with extension/selection/restriction (§2), scoped labels via shadow stacks (§2.1-3.2), row compatibility checks (§3.1) |
 | Bracha & Cook (1990) [*Mixin-Based Inheritance*](https://www.bracha.org/oopsla90.pdf) | Implements | Left-biased combination (§2.1 ⊕ operator), Smalltalk-direction mixin (§2.1), Beta-direction mixin (§2.2), associative mixin composition ⋆ (§4) |
 
-**Implements** means the code directly realizes the paper's constructs. All three papers have corresponding primitives in the codebase: `pure/search.nix` and `pure/intensional.nix` for Palmer, `pure/rec.nix` for Leijen and Bracha.
+**Implements** means the code directly realizes the paper's constructs (`pure/search.nix` + `pure/intensional.nix` for Palmer's search monad and intensional *structure*; `pure/rec.nix` for Leijen and Bracha). One caveat: gen's intensional *equality* is a name-only over-approximation, not a faithful realization of Palmer's name+closure conservative equality (§2.3 Fig 5 / Theorem 1) — see [Intensional Functions](#intensional-functions).
