@@ -14,6 +14,11 @@
       inherit inputs;
       name = "gen-algebra";
       testModules = ./tests;
-      specialArgs = { inherit genAlgebra; };
+      # genAlgebraSrc: repo root, for the purity invariant (ci/tests/purity.nix)
+      # to scan library source for module-system primitives.
+      specialArgs = {
+        inherit genAlgebra;
+        genAlgebraSrc = ../.;
+      };
     };
 }

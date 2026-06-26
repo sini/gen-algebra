@@ -1,5 +1,6 @@
 # Standalone identity hash — Palmer §2.2 program point + fields → stable hash.
-# No module system dependency. For module-system identity, see module/identity.nix.
+# No module system dependency. For module-system identity (mkIdentityModule), see
+# gen-schema (nix/lib/identity.nix) — the module tier relocated there.
 {
   # name: program point (definition site identifier)
   # fields: serializable closure contents (attrset of primitives)

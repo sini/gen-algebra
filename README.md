@@ -2,15 +2,14 @@
 
 [![CI](https://github.com/sini/gen-algebra/actions/workflows/ci.yml/badge.svg)](https://github.com/sini/gen-algebra/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink?logo=github)](https://github.com/sponsors/sini)
 
-Foundational primitives for the gen family: a Palmer §3 search monad, intensional functions, identity hashing, record algebra with scoped labels, validation, strict modules, and cross-registry references.
+Foundational primitives for the gen family: a Palmer §3 search monad, intensional functions, standalone identity hashing, record algebra with scoped labels, and Either combinators. Fully pure — `builtins` only, no nixpkgs `lib`.
 
 ## Table of Contents
 
 - [Overview](#overview)
 - [Gen Ecosystem](#gen-ecosystem)
 - [Quick Start](#quick-start)
-- [Pure Tier](#pure-tier)
-- [Module Tier](#module-tier)
+- [Primitives](#primitives)
 - [Demo](#demo)
 - [Architecture](#architecture)
 - [Testing](#testing)
@@ -18,18 +17,17 @@ Foundational primitives for the gen family: a Palmer §3 search monad, intension
 
 ## Overview
 
-gen-algebra is a two-tier Nix library:
+gen-algebra is a fully pure Nix library — zero dependencies, `builtins` only. Search monad for indexed state threading with convergence. Intensional function constructors for conservative equality (Palmer §2.2-2.3). Record algebra with scoped labels (Leijen §2) and mixin composition (Bracha §2-4). Either combinators. Standalone identity hashing.
 
-- **Pure tier** — zero dependencies, `builtins` only. Search monad for indexed state threading with convergence. Intensional function constructors for conservative equality (Palmer §2.2-2.3). Record algebra with scoped labels (Leijen §2) and mixin composition (Bracha §2-4). Either combinators. Standalone identity hashing.
-- **Module tier** — takes `{ lib }` from nixpkgs. Identity hashing, validators, strict freeform rejection, and cross-registry reference types for the NixOS module system.
+The module-system tier (identity/strict/validators/cross-registry refs for `lib.evalModules`) **relocated to [gen-schema](https://github.com/sini/gen-schema)**, its sole consumer; gen-algebra is the ecosystem's pure-algebra root.
 
 ### Extraction Lineage
 
 ```
 flake-aspects ──→ gen-algebra.search, gen-algebra.mkIntensional, gen-algebra.intensionalEq
-den-schema   ──→ gen-algebra.mkIdentityModule, gen-algebra.mkValidator, gen-algebra.mkStrictModule, gen-algebra.mkRefType
                     ↓
-              gen-schema (typed registries on gen-algebra primitives)
+              gen-schema (typed registries on gen-algebra primitives;
+                          owns the module-system tier — identity/strict/validators/refs)
                     ↓
               gen-aspects (aspect composition on gen-algebra + gen-schema)
                     ↓
@@ -59,17 +57,17 @@ gen-algebra has zero flake inputs — this lineage shows where each primitive wa
 {
   inputs.gen.url = "github:sini/gen-algebra";
 
-  outputs = { gen, nixpkgs, ... }:
+  outputs = { gen, ... }:
     let
-      lib = nixpkgs.lib;
-
-      # Pure tier — no lib needed
+      # Fully pure — no lib needed. Everything is under the `pure` output.
       search = gen.pure.search;
-      inherit (gen.pure) mkIntensional intensionalEq;
-
-      # Full tier — pass lib for module primitives
-      g = gen { inherit lib; };
-      inherit (g) mkValidator runValidators mkIdentityModule;
+      inherit (gen.pure)
+        mkIntensional
+        intensionalEq
+        mkIdentity
+        record
+        either
+        ;
     in
     { /* ... */ };
 }
@@ -79,21 +77,16 @@ gen-algebra has zero flake inputs — this lineage shows where each primitive wa
 
 ```nix
 let
-  lib = (import <nixpkgs> {}).lib;
-
-  # Full tier
-  gen = import ./path/to/gen-algebra { inherit lib; };
-
-  # Pure tier only (no nixpkgs needed)
-  genPure = import ./path/to/gen-algebra {};
+  # Fully pure — no nixpkgs / lib needed.
+  gen = import ./path/to/gen-algebra { };
 in
-gen.search.empty        # works
-gen.mkValidator         # works
-genPure.search.empty    # works
-genPure.mkValidator     # throws: "gen-algebra.mkValidator requires lib — call (import gen-algebra { inherit lib; })"
+{
+  inherit (gen) search record either mkIntensional mkIdentity;
+}
+# gen.search.empty, gen.record.fromAttrs, gen.either.right, … all `builtins`-only.
 ```
 
-## Pure Tier
+## Primitives
 
 ### Search Monad
 
@@ -306,7 +299,7 @@ record.assertSatisfies r [ "port" "hostname" ] # → r or throws with missing fi
 
 Fold ordered layers with per-field merge strategies. Useful for composing configuration from multiple priority tiers (e.g. defaults, system, user overrides) where different fields need different merge semantics.
 
-Pure tier — `builtins` only, no `lib` dependency.
+Pure — `builtins` only, no `lib` dependency.
 
 ```nix
 record.foldLayers {
@@ -346,6 +339,37 @@ record.foldLayers {
 #   settings = { verbose = true; pager = "less"; color = true; };  # recursive: merge in order
 # }
 ```
+
+#### `foldLayersTraced`
+
+Single-pass variant of `foldLayers` that also returns per-field provenance. The
+`value` is byte-identical to `foldLayers` given the same `strategies`, `defaults`,
+and `layers`. Takes additional `layerNames` (string labels aligned 1:1 with
+`layers`, least-specific first) and optional `defaultLabel`; returns
+`{ value; provenance; }` where `provenance.<field>` is an ordered list of
+`{ layer; value; }` (default first when present, then each contributing layer).
+Powers settings stratification.
+
+```nix
+record.foldLayersTraced {
+  strategies = { tags = "append"; };
+  defaults = { tags = [ "base" ]; };
+  layers = [ { tags = [ "system" ]; } { tags = [ "user" ]; } ];
+  layerNames = [ "system" "user" ];
+}
+# → { value = { tags = [ "base" "system" "user" ]; };
+#     provenance.tags = [ { layer = "default"; value = [ "base" ]; }
+#                         { layer = "system"; value = [ "system" ]; }
+#                         { layer = "user"; value = [ "user" ]; } ]; }
+```
+
+#### Nested-layer variants
+
+`flattenAttrs`, `unflattenAttrs`, and `foldNestedLayers` extend layer folding to
+nested attrsets. `foldNestedLayers` is `foldLayers` for nested structures
+(flatten → `foldLayers` → unflatten); `flattenAttrs`/`unflattenAttrs` are its
+dot-separated-key flatten/rebuild primitives (`flattenAttrs` halts recursion at
+fields whose strategy is `"recursive"`).
 
 ### Either Combinators
 
@@ -415,117 +439,24 @@ mkIdentity { name = "host"; fields = { addr = "10.0.1.1"; }; }
 # → "host:${sha256(toJSON { addr = "10.0.1.1"; })}"
 ```
 
-## Module Tier
-
-These primitives require `{ lib }` from nixpkgs. Accessing them without passing `lib` throws a clear error.
-
-### `mkIdentityModule`
-
-Injects `id_hash` (deterministic SHA-256) and `_identity.keys` into a NixOS module. Hash is computed from primitive options (str, int, bool), prefixed by kind name.
-
-```nix
-# Used inside mkInstanceType / lib.evalModules:
-modules = [
-  (mkIdentityModule "host")
-  { options.name = lib.mkOption { type = lib.types.str; }; }
-  { options.addr = lib.mkOption { type = lib.types.str; }; }
-  { config.name = "igloo"; config.addr = "10.0.1.1"; }
-];
-
-# instance.id_hash → deterministic SHA-256 of "host|addr=10.0.1.1|name=igloo"
-```
-
-Three-layer key selection: explicit `_identity.keys` > per-option `identity = false` > auto-reflection of all non-internal primitives. Options prefixed with `_` are excluded from reflection (guards against NixOS module system internals like `_module`).
-
-### `mkValidator` / `runValidators` / `formatErrors` / `defaultOnError`
-
-Validation pipeline for instance registries.
-
-```nix
-validators = [
-  (mkValidator "has-name"
-    (x: x ? name && x.name != "")
-    "must have a name")
-  (mkValidator "positive-age"
-    (x: x ? age && x.age > 0)
-    "age must be positive")
-];
-
-# Pass:
-runValidators "person" validators {
-  alice = { name = "Alice"; age = 30; };
-}
-# → { right = { alice = { ... }; }; }
-
-# Fail:
-runValidators "person" validators {
-  broken = { name = ""; age = -1; };
-}
-# → { left = [
-#      { kind = "person"; name = "broken"; validator = "has-name"; message = "must have a name"; }
-#      { kind = "person"; name = "broken"; validator = "positive-age"; message = "age must be positive"; }
-#    ]; }
-
-# Format errors for display:
-formatErrors result.left
-# → "  person 'broken': has-name — must have a name\n  person 'broken': positive-age — age must be positive"
-
-# Throw on error:
-defaultOnError result.left
-# throws: "schema validation failed:\n  person 'broken': ..."
-```
-
-### `mkStrictModule`
-
-Injects a freeform type that rejects undeclared keys with fix guidance.
-
-```nix
-modules = [
-  (mkStrictModule "host")
-  { options.addr = lib.mkOption { type = lib.types.str; }; }
-  { config.addr = "10.0.1.1"; config.badKey = "x"; }
-];
-# throws: STRICT MODE: "badKey" is not declared on host.
-#         Fix: schema.host.options.badKey = lib.mkOption { ... };
-```
-
-### `mkRefType`
-
-Cross-registry reference type. Input: string key. Output: resolved instance. Throws on missing key.
-
-```nix
-# Given a registry of evaluated instances:
-hosts = { igloo = { addr = "10.0.1.1"; }; iceberg = { addr = "10.0.2.1"; }; };
-
-# Use in module options:
-options.host = lib.mkOption {
-  type = mkRefType hosts;
-};
-config.host = "igloo";
-
-# Resolves to the full instance:
-# config.host.addr → "10.0.1.1"
-# config.host = "missing" → throws: reference 'missing' not found in instance registry
-```
-
 ## Demo
 
-See [`examples/demo/`](examples/demo/) for a self-contained example exercising search monad workflow, intensional dedup, record algebra, either combinators, and validation.
+See [`examples/demo/`](examples/demo/) for a self-contained example exercising search monad workflow, intensional dedup, record algebra, and either combinators.
 
 ```bash
 cd examples/demo
 nix eval --override-input gen-algebra ../.. .#searchResult
 nix eval --override-input gen-algebra ../.. .#dedupResult
-nix eval --override-input gen-algebra ../.. .#validationPass
-nix eval --override-input gen-algebra ../.. .#validationFail
+nix eval --override-input gen-algebra ../.. .#scopedLabels
+nix eval --override-input gen-algebra ../.. .#eitherDemo
 ```
 
 ## Architecture
 
 ```
 gen-algebra/
-  default.nix              — entry point ({ lib ? null }), two-tier dispatch
-  flake.nix                — flake outputs (__functor + lib)
+  default.nix              — entry point ({ ... }), exports the pure tier
+  flake.nix                — flake outputs (__functor + pure)
   pure/
     default.nix            — exports search + intensional + identity + either + record
     search.nix             — Palmer §3 Search monad (8 public primitives)
@@ -533,18 +464,12 @@ gen-algebra/
     identity.nix           — mkIdentity (standalone hash)
     either.nix             — Either combinators (right, left, pipe, collectErrors, mapR, chain)
     rec.nix                — Leijen §2 record algebra with scoped labels + Bracha §2-4 mixin composition + foldLayers
-  module/
-    default.nix            — exports identity + validation + strict + ref
-    identity.nix           — mkIdentityModule (id_hash via SHA-256)
-    validate.nix           — mkValidator, runValidators, formatErrors, defaultOnError
-    strict.nix             — mkStrictModule (strict freeform rejection)
-    ref-type.nix           — mkRefType (cross-registry references)
-  ci/                      — nix-unit test suite
+  ci/                      — nix-unit test suite (incl. the purity invariant)
   examples/
-    demo/                  — self-contained demo (search + dedup + records + either + validation)
+    demo/                  — self-contained demo (search + dedup + records + either)
 ```
 
-The pure tier has zero dependencies — consumers needing only search or intensional functions don't pull in nixpkgs. The module tier takes `{ lib }` for NixOS module system primitives. Accessing module-tier functions without `lib` throws with a clear message rather than silently being absent.
+gen-algebra is fully pure — zero dependencies of any kind, not even nixpkgs `lib`. The CI purity invariant (`ci/tests/purity.nix`) enforces this: a stray `lib.types` / `mkOption` / `evalModules` in the library source fails the suite. The module-system tier relocated to [gen-schema](https://github.com/sini/gen-schema), its sole consumer.
 
 ## Testing
 

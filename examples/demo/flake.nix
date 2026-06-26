@@ -1,5 +1,5 @@
 {
-  description = "gen-algebra demo: search monad, intensional dedup, record algebra, validation";
+  description = "gen-algebra demo: search monad, intensional dedup, record algebra, either";
 
   inputs = {
     gen-algebra.url = "github:sini/gen-algebra";
@@ -14,8 +14,6 @@
       inherit (g)
         search
         mkIntensional
-        mkValidator
-        runValidators
         ;
     in
     {
@@ -43,48 +41,6 @@
         in
         final.results;
       # → [ "counted:v" ]
-
-      # Module tier: validation pass
-      validationPass =
-        let
-          validators = [
-            (mkValidator "has-name" (x: x ? name && x.name != "") "must have a name")
-            (mkValidator "positive-age" (x: x ? age && x.age > 0) "age must be positive")
-          ];
-          instances = {
-            alice = {
-              name = "Alice";
-              age = 30;
-            };
-            bob = {
-              name = "Bob";
-              age = 25;
-            };
-          };
-        in
-        runValidators "person" validators instances;
-      # → { right = { alice = { ... }; bob = { ... }; }; }
-
-      # Module tier: validation fail
-      validationFail =
-        let
-          validators = [
-            (mkValidator "has-name" (x: x ? name && x.name != "") "must have a name")
-            (mkValidator "positive-age" (x: x ? age && x.age > 0) "age must be positive")
-          ];
-          instances = {
-            alice = {
-              name = "Alice";
-              age = 30;
-            };
-            broken = {
-              name = "";
-              age = -1;
-            };
-          };
-        in
-        runValidators "person" validators instances;
-      # → { left = [ { kind = "person"; name = "broken"; validator = "has-name"; message = "must have a name"; } ... ]; }
 
       # Record algebra: scoped labels (Leijen 2005)
       # Duplicate labels form a stack — restriction exposes previous values.

@@ -1,18 +1,12 @@
 {
-  lib ? null,
+  # Accepts `{ lib }` for call-compatibility (consumers do
+  # `import gen-algebra { inherit lib; }`), but gen-algebra is now fully pure —
+  # `lib` is unused. The module-system tier (identity/strict/validators/refs)
+  # relocated to gen-schema, its sole consumer. See
+  # ~/Documents/papers/den-architecture/gen-specs/gen-algebra/2026-06-26-module-tier-relocation.md
+  ...
 }:
 let
   pure = import ./pure;
-  module = if lib != null then import ./module { inherit lib; } else null;
-  noLib = name: throw "gen-algebra.${name} requires lib — call (import gen-algebra { inherit lib; })";
-  moduleFallback = {
-    mkIdentityModule = noLib "mkIdentityModule";
-    mkValidator = noLib "mkValidator";
-    runValidators = noLib "runValidators";
-    formatErrors = noLib "formatErrors";
-    defaultOnError = noLib "defaultOnError";
-    mkStrictModule = noLib "mkStrictModule";
-    mkRefType = noLib "mkRefType";
-  };
 in
-{ pure = pure; } // pure // (if module != null then module else moduleFallback)
+{ pure = pure; } // pure
