@@ -59,9 +59,9 @@ gen-algebra has zero flake inputs — this lineage shows where each primitive wa
 
   outputs = { gen, ... }:
     let
-      # Fully pure — no lib needed. Everything is under the `pure` output.
-      search = gen.pure.search;
-      inherit (gen.pure)
+      # Fully pure — no lib needed. Everything is under the `lib` output.
+      search = gen.lib.search;
+      inherit (gen.lib)
         mkIntensional
         intensionalEq
         mkIdentity
@@ -216,7 +216,7 @@ Intensional equality powers continuation dedup in `search.converge` — duplicat
 
 A record algebra with scoped labels (Leijen §2) and mixin composition (Bracha §2-4). Records support duplicate labels via shadow stacks — extending with an existing label pushes a new value, restriction pops it, exposing the previous value.
 
-All operations are in `gen-algebra.record` (or `gen-algebra.pure.record`). Zero dependencies.
+All operations are in `gen-algebra.record` (or `gen-algebra.lib.record`). Zero dependencies.
 
 #### Representation
 
@@ -375,7 +375,7 @@ fields whose strategy is `"recursive"`).
 
 Short-circuit and accumulating error handling via `{ right = value; }` | `{ left = error; }`. Zero dependencies.
 
-All operations are in `gen-algebra.either` (or `gen-algebra.pure.either`).
+All operations are in `gen-algebra.either` (or `gen-algebra.lib.either`).
 
 #### `right` / `left`
 
@@ -455,9 +455,9 @@ nix eval --override-input gen-algebra ../.. .#eitherDemo
 
 ```
 gen-algebra/
-  default.nix              — entry point ({ ... }), exports the pure tier
-  flake.nix                — flake outputs (__functor + pure)
-  pure/
+  default.nix              — entry point ({ ... }), exports the library
+  flake.nix                — flake outputs (__functor + lib)
+  lib/
     default.nix            — exports search + intensional + identity + either + record
     search.nix             — Palmer §3 Search monad (8 public primitives)
     intensional.nix        — mkIntensional, intensionalEq
@@ -487,4 +487,4 @@ nix-unit --flake ./ci#tests --override-input gen-algebra .
 | Leijen (2005) [*Extensible Records with Scoped Labels*](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/scopedlabels.pdf) | Implements | Record algebra with extension/selection/restriction (§2), scoped labels via shadow stacks (§2.1-3.2), row compatibility checks (§3.1) |
 | Bracha & Cook (1990) [*Mixin-Based Inheritance*](https://www.bracha.org/oopsla90.pdf) | Implements | Left-biased combination (§2.1 ⊕ operator), Smalltalk-direction mixin (§2.1), Beta-direction mixin (§2.2), associative mixin composition ⋆ (§4) |
 
-**Implements** means the code directly realizes the paper's constructs (`pure/search.nix` + `pure/intensional.nix` for Palmer's search monad and intensional *structure*; `pure/rec.nix` for Leijen and Bracha). One caveat: gen's intensional *equality* is a name-only over-approximation, not a faithful realization of Palmer's name+closure conservative equality (§2.3 Fig 5 / Theorem 1) — see [Intensional Functions](#intensional-functions).
+**Implements** means the code directly realizes the paper's constructs (`lib/search.nix` + `lib/intensional.nix` for Palmer's search monad and intensional *structure*; `lib/rec.nix` for Leijen and Bracha). One caveat: gen's intensional *equality* is a name-only over-approximation, not a faithful realization of Palmer's name+closure conservative equality (§2.3 Fig 5 / Theorem 1) — see [Intensional Functions](#intensional-functions).

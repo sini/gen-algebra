@@ -3,7 +3,7 @@
 # purity audit (gen-specs/gen-prelude/2026-06-26-gen-ecosystem-purity-audit.md §5,
 # "Gates"). The module tier (mkIdentityModule/mkStrictModule/validators/mkRefType)
 # relocated to gen-schema; a stray lib.types/mkOption/evalModules creeping back
-# into pure/ or default.nix fails here.
+# into lib/ or default.nix fails here.
 { lib, genAlgebraSrc, ... }:
 let
   # `mkOption` as an infix also catches `mkOptionType`.
@@ -13,14 +13,14 @@ let
     "evalModules"
   ];
 
-  # Library source = default.nix + everything under pure/. ci/ and examples/
+  # Library source = default.nix + everything under lib/. ci/ and examples/
   # legitimately use the module system (tests/demos) and are out of scope.
   pureFiles =
     let
-      entries = builtins.readDir (genAlgebraSrc + "/pure");
+      entries = builtins.readDir (genAlgebraSrc + "/lib");
       isNix = n: t: t == "regular" && lib.hasSuffix ".nix" n;
     in
-    map (n: genAlgebraSrc + "/pure/${n}") (builtins.attrNames (lib.filterAttrs isNix entries));
+    map (n: genAlgebraSrc + "/lib/${n}") (builtins.attrNames (lib.filterAttrs isNix entries));
 
   sourceFiles = [ (genAlgebraSrc + "/default.nix") ] ++ pureFiles;
 
@@ -38,7 +38,7 @@ in
     expected = [ ];
   };
   flake.tests.purity.test-source-scanned = {
-    # default.nix + the pure/ tier (≥6 files) — guards against an empty scan.
+    # default.nix + the lib/ tier (≥6 files) — guards against an empty scan.
     expr = builtins.length sourceFiles >= 6;
     expected = true;
   };

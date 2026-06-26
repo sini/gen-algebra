@@ -1,7 +1,7 @@
 {
-  description = "gen-algebra: generic Nix infrastructure — search, identity, validation";
+  description = "gen-algebra: pure Nix algebra — search monad, records, intensional functions, either";
   outputs = _: {
     __functor = _: import ./.;
-    pure = import ./pure;
+    lib = import ./lib;
   };
 }
