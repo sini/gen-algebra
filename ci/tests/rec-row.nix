@@ -1,6 +1,6 @@
 { lib, genAlgebra, ... }:
 let
-  R = genAlgebra.lib.record;
+  R = genAlgebra.record;
   r = R.fromAttrs {
     port = 8080;
     hostname = "localhost";

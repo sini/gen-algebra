@@ -1,6 +1,6 @@
 { lib, genAlgebra, ... }:
 let
-  inherit (genAlgebra.lib.record) foldLayers foldLayersTraced;
+  inherit (genAlgebra.record) foldLayers foldLayersTraced;
 
   # A replace fixture (multiple contributors + a passthrough key).
   replaceArgs = {

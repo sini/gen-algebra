@@ -10,7 +10,7 @@
     { nixpkgs, ... }@inputs:
     let
       lib = nixpkgs.lib;
-      g = inputs.gen-algebra { inherit lib; };
+      g = inputs.gen-algebra.lib;
       inherit (g)
         search
         mkIntensional
@@ -46,7 +46,7 @@
       # Duplicate labels form a stack — restriction exposes previous values.
       scopedLabels =
         let
-          R = g.lib.record;
+          R = g.record;
           base = R.fromAttrs {
             level = "info";
             port = 8080;
@@ -66,7 +66,7 @@
       # combine is left-biased (⊕), mixin is Smalltalk direction.
       recordComposition =
         let
-          R = g.lib.record;
+          R = g.record;
           base = R.fromAttrs {
             port = 8080;
             hostname = "localhost";
@@ -109,7 +109,7 @@
       # Record algebra: row compatibility (Leijen §3.1)
       rowCompatibility =
         let
-          R = g.lib.record;
+          R = g.record;
           r = R.fromAttrs {
             port = 8080;
             hostname = "localhost";
@@ -131,7 +131,7 @@
       # Either: pipe (short-circuit) and collectErrors (accumulate)
       eitherDemo =
         let
-          E = g.lib.either;
+          E = g.either;
 
           # Pipe: first failure stops the chain
           pipeResult = E.pipe [

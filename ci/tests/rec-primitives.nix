@@ -1,6 +1,6 @@
 { lib, genAlgebra, ... }:
 let
-  R = genAlgebra.lib.record;
+  R = genAlgebra.record;
 in
 {
   flake.tests.rec-primitives.test-empty = {

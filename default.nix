@@ -6,7 +6,4 @@
   # See ~/Documents/papers/den-architecture/gen-specs/gen-algebra/2026-06-26-module-tier-relocation.md
   ...
 }:
-let
-  lib = import ./lib;
-in
-{ lib = lib; } // lib
+import ./lib

@@ -3,4 +3,4 @@ let
   nixpkgs = import (builtins.getFlake "nixpkgs") { };
   genAlgebra = import ./.. { inherit (nixpkgs) lib; };
 in
-{ inherit (nixpkgs) lib; } // genAlgebra // { lib = genAlgebra.lib; }
+{ inherit (nixpkgs) lib; } // genAlgebra

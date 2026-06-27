@@ -216,7 +216,7 @@ Intensional equality powers continuation dedup in `search.converge` — duplicat
 
 A record algebra with scoped labels (Leijen §2) and mixin composition (Bracha §2-4). Records support duplicate labels via shadow stacks — extending with an existing label pushes a new value, restriction pops it, exposing the previous value.
 
-All operations are in `gen-algebra.record` (or `gen-algebra.lib.record`). Zero dependencies.
+All operations are in `gen-algebra.record` (import path) — or `inputs.gen-algebra.lib.record` via the flake output. Zero dependencies.
 
 #### Representation
 
@@ -375,7 +375,7 @@ fields whose strategy is `"recursive"`).
 
 Short-circuit and accumulating error handling via `{ right = value; }` | `{ left = error; }`. Zero dependencies.
 
-All operations are in `gen-algebra.either` (or `gen-algebra.lib.either`).
+All operations are in `gen-algebra.either` (import path) — or `inputs.gen-algebra.lib.either` via the flake output.
 
 #### `right` / `left`
 
