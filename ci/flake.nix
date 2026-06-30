@@ -1,24 +1,20 @@
 {
   inputs = {
     gen.url = "github:sini/gen";
+    # nixpkgs is the CI runner's dependency (test harness, treefmt) and supplies the
+    # `lib` the test modules use. gen-algebra itself (../lib) takes no inputs.
     nixpkgs.url = "https://channels.nixos.org/nixos-unstable/nixexprs.tar.xz";
   };
 
   outputs =
-    inputs@{ gen, nixpkgs, ... }:
+    inputs@{ gen, ... }:
     let
-      inherit (nixpkgs) lib;
-      genAlgebra = import ../. { inherit lib; };
+      genAlgebra = import ../lib;
     in
     gen.lib.mkCi {
       inherit inputs;
       name = "gen-algebra";
       testModules = ./tests;
-      # genAlgebraSrc: repo root, for the purity invariant (ci/tests/purity.nix)
-      # to scan library source for module-system primitives.
-      specialArgs = {
-        inherit genAlgebra;
-        genAlgebraSrc = ../.;
-      };
+      specialArgs = { inherit genAlgebra; };
     };
 }

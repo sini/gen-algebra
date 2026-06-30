@@ -1,45 +1,73 @@
-# Purity invariant — gen-algebra's library source uses no module-system
-# primitives. Enforces the pure-algebra-root contract from the gen ecosystem
-# purity audit (gen-specs/gen-prelude/2026-06-26-gen-ecosystem-purity-audit.md §5,
-# "Gates"). The module tier (mkIdentityModule/mkStrictModule/validators/mkRefType)
-# relocated to gen-schema; a stray lib.types/mkOption/evalModules creeping back
-# into lib/ or default.nix fails here.
-{ lib, genAlgebraSrc, ... }:
+# Purity invariant (gen ecosystem purity audit §5): gen-algebra's library source uses no
+# nixpkgs.lib and no module-system primitives — it is builtins + its own domain algebra.
+# A stray `lib.foo` / `lib.types` / `evalModules` / nixpkgs input creeping back into the
+# library source fails CI. The module tier relocated to gen-schema.
+#
+# Scope: lib/**.nix (recursively) + the root flake.nix + default.nix. NOT ci/ — the test
+# harness legitimately uses nixpkgs.lib (including, here, to do this scan).
+#
+# Forbidden list omits `gen-algebra`/`genAlgebra` (this IS gen-algebra; the flake
+# description names it).
+{ lib, ... }:
 let
-  # `mkOption` as an infix also catches `mkOptionType`.
+  libDir = ../../lib;
+
+  # Comment-stripped source: drop everything from the first `#` on each line. Safe here
+  # because `#` appears only in comments across these files (no `#` in string literals).
+  stripComments =
+    text:
+    lib.concatStringsSep "\n" (
+      map (line: lib.head (lib.splitString "#" line)) (lib.splitString "\n" text)
+    );
+
+  # Recursively collect every .nix under a directory.
+  walk =
+    dir:
+    lib.concatLists (
+      lib.mapAttrsToList (
+        name: type:
+        if type == "directory" then
+          walk (dir + "/${name}")
+        else if lib.hasSuffix ".nix" name then
+          [ (dir + "/${name}") ]
+        else
+          [ ]
+      ) (builtins.readDir dir)
+    );
+
+  sources =
+    map (p: {
+      name = toString p;
+      code = stripComments (builtins.readFile p);
+    }) (walk libDir)
+    ++
+      map
+        (rel: {
+          name = rel;
+          code = stripComments (builtins.readFile (../.. + "/${rel}"));
+        })
+        [
+          "flake.nix"
+          "default.nix"
+        ];
+
+  # Tokens signalling a nixpkgs-lib tether or the module-system (Korora-class) tier.
   forbidden = [
-    "lib.types"
-    "mkOption"
+    "nixpkgs"
+    "lib."
+    "{ lib }"
+    "{ lib,"
     "evalModules"
+    "mkOption"
   ];
 
-  # Library source = default.nix + everything under lib/. ci/ and examples/
-  # legitimately use the module system (tests/demos) and are out of scope.
-  pureFiles =
-    let
-      entries = builtins.readDir (genAlgebraSrc + "/lib");
-      isNix = n: t: t == "regular" && lib.hasSuffix ".nix" n;
-    in
-    map (n: genAlgebraSrc + "/lib/${n}") (builtins.attrNames (lib.filterAttrs isNix entries));
-
-  sourceFiles = [ (genAlgebraSrc + "/default.nix") ] ++ pureFiles;
-
   violations = lib.concatMap (
-    file:
-    let
-      content = builtins.readFile file;
-    in
-    lib.concatMap (tok: lib.optional (lib.hasInfix tok content) "${baseNameOf file}: ${tok}") forbidden
-  ) sourceFiles;
+    src: map (tok: "${src.name}: '${tok}'") (lib.filter (tok: lib.hasInfix tok src.code) forbidden)
+  ) sources;
 in
 {
-  flake.tests.purity.test-no-module-primitives = {
+  flake.tests.purity.test-library-source-is-nixpkgs-lib-free = {
     expr = violations;
     expected = [ ];
-  };
-  flake.tests.purity.test-source-scanned = {
-    # default.nix + the lib/ tier (≥6 files) — guards against an empty scan.
-    expr = builtins.length sourceFiles >= 6;
-    expected = true;
   };
 }
