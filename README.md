@@ -1,4 +1,4 @@
-# gen-algebra — Generic Nix Infrastructure
+# gen-algebra — pure algebraic primitives for Nix
 
 [![CI](https://github.com/sini/gen-algebra/actions/workflows/ci.yml/badge.svg)](https://github.com/sini/gen-algebra/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink?logo=github)](https://github.com/sponsors/sini)
 
@@ -19,7 +19,7 @@ Foundational primitives for the gen family: a Palmer §3 search monad, intension
 
 gen-algebra is a fully pure Nix library — zero dependencies, `builtins` only. Search monad for indexed state threading with convergence. Intensional function constructors for conservative equality (Palmer §2.2-2.3). Record algebra with scoped labels (Leijen §2) and mixin composition (Bracha §2-4). Either combinators. Standalone identity hashing.
 
-The module-system tier (identity/strict/validators/cross-registry refs for `lib.evalModules`) **relocated to [gen-schema](https://github.com/sini/gen-schema)**, its sole consumer; gen-algebra is the ecosystem's pure-algebra root.
+The module-system tier (identity/strict/validators/cross-registry refs for `lib.evalModules`) **relocated to [gen-schema](https://github.com/sini/gen-schema)**, its sole consumer; gen-algebra is the ecosystem's pure-algebra root. Its former `pure` tier is now simply the `lib` output — everything gen-algebra ships is pure.
 
 ### Extraction Lineage
 
@@ -40,14 +40,18 @@ gen-algebra has zero flake inputs — this lineage shows where each primitive wa
 
 | Library | Role |
 |---------|------|
-| [gen-algebra](https://github.com/sini/gen-algebra) | Pure primitives (search, record, identity) |
+| [gen-prelude](https://github.com/sini/gen-prelude) | Pure nixpkgs-lib-free utility base (builtins re-exports + vendored lib utils) |
+| [gen-algebra](https://github.com/sini/gen-algebra) | Pure primitives (record, search monad, either, intensional identity) |
 | [gen-schema](https://github.com/sini/gen-schema) | Typed registries (kinds, instances, collections, refs) |
-| [gen-aspects](https://github.com/sini/gen-aspects) | Aspect types (traits, classification, dispatch) |
-| [gen-graph](https://github.com/sini/gen-graph) | Graph queries (combinators, traversals, fixpoint) |
-| [gen-scope](https://github.com/sini/gen-scope) | Scope graphs (construction, evaluation, resolution) |
+| [gen-aspects](https://github.com/sini/gen-aspects) | Aspect type system (traits, classification, dispatch) |
+| [gen-scope](https://github.com/sini/gen-scope) | HOAG scope-graph evaluator (demand-driven, \_eval memoization, circular attributes) |
+| [gen-graph](https://github.com/sini/gen-graph) | Accessor-based graph query combinators (traversal, condensation, phaseOrder) |
 | [gen-select](https://github.com/sini/gen-select) | Selector algebra (pattern matching over graph positions) |
-| [gen-bind](https://github.com/sini/gen-bind) | Module binding (inject args into NixOS modules) |
-| [gen-derive](https://github.com/sini/gen-derive) | Rule dispatch (stratified phases, fixpoint, conflict resolution) |
+| [gen-bind](https://github.com/sini/gen-bind) | Module binding (inject external args into NixOS modules) |
+| [gen-dispatch](https://github.com/sini/gen-dispatch) | Relational rule dispatch STEP (stratified phases, conflict resolution) |
+| [gen-resolve](https://github.com/sini/gen-resolve) | Demand-driven RAG evaluator over scope graphs (attribute schedule + convergence loop) |
+| [gen-rebuild](https://github.com/sini/gen-rebuild) | Pure-Nix incremental rebuilder (change propagation, AFFECTED set) |
+| [gen-vars](https://github.com/sini/gen-vars) | Pure-Nix vars/secrets (den-agnostic) |
 
 ## Quick Start
 
@@ -77,8 +81,9 @@ gen-algebra has zero flake inputs — this lineage shows where each primitive wa
 
 ```nix
 let
-  # Fully pure — no nixpkgs / lib needed.
-  gen = import ./path/to/gen-algebra { };
+  # Fully pure — no nixpkgs / lib needed. The non-flake entry (default.nix = import ./lib)
+  # is the lib value itself, not a function — so no argument is applied.
+  gen = import ./path/to/gen-algebra;
 in
 {
   inherit (gen) search record either mkIntensional mkIdentity;
@@ -455,8 +460,8 @@ nix eval --override-input gen-algebra ../.. .#eitherDemo
 
 ```
 gen-algebra/
-  default.nix              — entry point ({ ... }), exports the library
-  flake.nix                — flake outputs (__functor + lib)
+  default.nix              — non-flake entry (bare lib value: import ./lib, no argument)
+  flake.nix                — flake output (single `lib` value, no __functor)
   lib/
     default.nix            — exports search + intensional + identity + either + record
     search.nix             — Palmer §3 Search monad (8 public primitives)
@@ -473,16 +478,20 @@ gen-algebra is fully pure — zero dependencies of any kind, not even nixpkgs `l
 
 ## Testing
 
-Tests live in `ci/` using nix-unit:
+Tests live in `ci/` and run under nix-unit (via `gen.lib.mkCi`). 128 test cases across 13 suites (`either`, `identity-standalone`, `intensional`, `purity`, `rec-primitives`, `rec-derived`, `rec-row`, `rec-composition`, `rec-fold-layers`, `rec-fold-layers-traced`, `rec-nested-layers`, `search-primitives`, `search-converge`), including the purity invariant that fails on any stray `lib.types` / `mkOption` / `evalModules` in the library source. Requires nix-unit.
 
 ```bash
-nix-unit --flake ./ci#tests --override-input gen-algebra .
+# all suites
+nix flake check --override-input gen-algebra . ./ci
+
+# one suite (nix-unit)
+nix-unit --flake ./ci#tests.rec-composition --override-input gen-algebra .
 ```
 
 ## Theoretical Foundations
 
-| Paper | Relationship | What |
-|-------|-------------|------|
+| Paper | Relationship | Used for |
+|-------|-------------|----------|
 | Palmer et al. (2024) [*Intensional Functions*](https://dl.acm.org/doi/10.1145/3689714) | Implements structure / informed by | Search monad with name-keyed continuation dedup (§3); the three intensional eliminators `__functor`/`name`/`closure` (§2.2-2.3). Equality + dedup are **name-only** — a deliberate over-approximation of Palmer's name+closure conservative equality (§2.3 Fig 5), not the Theorem-1 result (gen's `closure` is programmer-declared, not compiler-extracted). |
 | Leijen (2005) [*Extensible Records with Scoped Labels*](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/scopedlabels.pdf) | Implements | Record algebra with extension/selection/restriction (§2), scoped labels via shadow stacks (§2.1-3.2), row compatibility checks (§3.1) |
 | Bracha & Cook (1990) [*Mixin-Based Inheritance*](https://www.bracha.org/oopsla90.pdf) | Implements | Left-biased combination (§2.1 ⊕ operator), Smalltalk-direction mixin (§2.1), Beta-direction mixin (§2.2), associative mixin composition ⋆ (§4) |
