@@ -102,7 +102,7 @@
           combinedHasDebug = R.has combined "debug"; # → true
           mixedMetrics = R.select mixed "metricsPort"; # → 9080
           mixedDebug = R.select mixed "debug"; # → false (delta wins)
-          labelOrder = R.labels combined; # → [ "port" "debug" "hostname" ]
+          labelOrder = R.labels combined; # → [ "debug" "port" "hostname" ]
           fullStacks = R.emitAll stacked [ "tags" ]; # → { tags = [ ["prod"] ["base"] ]; port = 80; }
         };
 
