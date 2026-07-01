@@ -2,14 +2,16 @@
 
 [![CI](https://github.com/sini/gen-algebra/actions/workflows/ci.yml/badge.svg)](https://github.com/sini/gen-algebra/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink?logo=github)](https://github.com/sponsors/sini)
 
-Foundational primitives for the gen family: a Palmer §3 search monad, intensional functions, standalone identity hashing, record algebra with scoped labels, and Either combinators. Fully pure — `builtins` only, no nixpkgs `lib`.
+Foundational primitives for the gen family: a Palmer §3 search monad, intensional functions, standalone identity hashing, record algebra with scoped labels, and Either combinators.
+
+**Class A (pure, zero-input).** gen-algebra declares no flake inputs and depends on nothing — not even nixpkgs `lib`; it is `builtins`-only and sits at the pure-algebra root of the ecosystem. A CI purity invariant (`ci/tests/purity.nix`) enforces this: any stray `lib.types` / `mkOption` / `evalModules` in the library source fails the suite.
 
 ## Table of Contents
 
 - [Overview](#overview)
 - [Gen Ecosystem](#gen-ecosystem)
 - [Quick Start](#quick-start)
-- [Primitives](#primitives)
+- [API Reference](#api-reference)
 - [Demo](#demo)
 - [Architecture](#architecture)
 - [Testing](#testing)
@@ -41,7 +43,7 @@ gen-algebra has zero flake inputs — this lineage shows where each primitive wa
 | Library | Role |
 |---------|------|
 | [gen-prelude](https://github.com/sini/gen-prelude) | Pure nixpkgs-lib-free utility base (builtins re-exports + vendored lib utils) |
-| [gen-algebra](https://github.com/sini/gen-algebra) | Pure primitives (record, search monad, either, intensional identity) |
+| [gen-algebra](https://github.com/sini/gen-algebra) | **This lib** — Pure primitives (record, search monad, either, intensional identity) |
 | [gen-schema](https://github.com/sini/gen-schema) | Typed registries (kinds, instances, collections, refs) |
 | [gen-aspects](https://github.com/sini/gen-aspects) | Aspect type system (traits, classification, dispatch) |
 | [gen-scope](https://github.com/sini/gen-scope) | HOAG scope-graph evaluator (demand-driven, \_eval memoization, circular attributes) |
@@ -91,7 +93,9 @@ in
 # gen.search.empty, gen.record.fromAttrs, gen.either.right, … all `builtins`-only.
 ```
 
-## Primitives
+## API Reference
+
+Every exported name is documented below, grouped by primitive family. The full surface is `search` (8), `record` (26), `either` (6), plus top-level `mkIntensional`, `intensionalEq`, and `mkIdentity` — verified against `nix eval .#lib`.
 
 ### Search Monad
 
