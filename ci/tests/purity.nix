@@ -8,7 +8,7 @@
 #
 # Forbidden list omits `gen-algebra`/`genAlgebra` (this IS gen-algebra; the flake
 # description names it).
-{ lib, ... }:
+{ genPrelude, lib, ... }:
 let
   libDir = ../../lib;
 
@@ -62,7 +62,8 @@ let
   ];
 
   violations = lib.concatMap (
-    src: map (tok: "${src.name}: '${tok}'") (lib.filter (tok: lib.hasInfix tok src.code) forbidden)
+    src:
+    map (tok: "${src.name}: '${tok}'") (lib.filter (tok: genPrelude.hasInfix tok src.code) forbidden)
   ) sources;
 in
 {
