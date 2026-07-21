@@ -67,6 +67,68 @@ let
     ];
   };
 
+  # A semilattice-set fixture: overlapping list values, ACI union.
+  semilatticeArgs = {
+    strategies = {
+      f = "semilattice-set";
+    };
+    defaults = {
+      f = [ ];
+    };
+    layers = [
+      {
+        f = [
+          "a"
+          "b"
+          "c"
+        ];
+      }
+      {
+        f = [
+          "b"
+          "c"
+          "d"
+        ];
+      }
+    ];
+    layerNames = [
+      "l0"
+      "l1"
+    ];
+  };
+
+  # The same two layers, folded in the reversed order (the permutation witness).
+  semilatticeArgsRev = {
+    strategies = {
+      f = "semilattice-set";
+    };
+    defaults = {
+      f = [ ];
+    };
+    layers = [
+      {
+        f = [
+          "b"
+          "c"
+          "d"
+        ];
+      }
+      {
+        f = [
+          "a"
+          "b"
+          "c"
+        ];
+      }
+    ];
+    layerNames = [
+      "l1"
+      "l0"
+    ];
+  };
+
+  sortStrs = builtins.sort builtins.lessThan;
+
   stripTrace =
     args:
     removeAttrs args [
@@ -271,6 +333,85 @@ in
           layerNames = [ ];
         })).success;
       expected = false;
+    };
+
+    # --- semilattice-set: commutative + idempotent set-union of list values. ---
+
+    # Deduped union: default [ ] ++ l0 ["a" "b" "c"], then l1 contributes only
+    # "d" (b/c already present) → ["a" "b" "c" "d"] in insertion order.
+    test-semilattice-union-dedup = {
+      expr = (foldLayersTraced semilatticeArgs).value.f;
+      expected = [
+        "a"
+        "b"
+        "c"
+        "d"
+      ];
+    };
+
+    # ACI witness: the SAME layers folded in BOTH orders yield the same set
+    # (list order follows insertion, so equality is witnessed on the sorted set).
+    test-semilattice-permutation-invariant = {
+      expr =
+        let
+          fwd = (foldLayersTraced semilatticeArgs).value.f;
+          rev = (foldLayersTraced semilatticeArgsRev).value.f;
+        in
+        sortStrs fwd == sortStrs rev;
+      expected = true;
+    };
+
+    # Idempotence: re-contributing an identical layer adds nothing new.
+    test-semilattice-idempotent = {
+      expr =
+        (foldLayersTraced {
+          strategies.f = "semilattice-set";
+          layers = [
+            {
+              f = [
+                "a"
+                "b"
+              ];
+            }
+            {
+              f = [
+                "a"
+                "b"
+              ];
+            }
+          ];
+          layerNames = [
+            "l0"
+            "l1"
+          ];
+        }).value.f;
+      expected = [
+        "a"
+        "b"
+      ];
+    };
+
+    # Intra-layer dedup: a single layer with an internal duplicate collapses
+    # to a set (element-wise fold, not filter-against-fixed-acc).
+    test-semilattice-intra-layer-dup = {
+      expr =
+        (foldLayersTraced {
+          strategies.f = "semilattice-set";
+          layers = [
+            {
+              f = [
+                "a"
+                "a"
+                "b"
+              ];
+            }
+          ];
+          layerNames = [ "l0" ];
+        }).value.f;
+      expected = [
+        "a"
+        "b"
+      ];
     };
 
     # --- unknown strategy throws. ---

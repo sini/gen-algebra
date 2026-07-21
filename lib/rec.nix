@@ -257,6 +257,10 @@ let
                 builtins.foldl' (acc: e: acc ++ e.layer.${name}) (defaults.${name} or [ ]) contribs
               else if strategy == "recursive" then
                 builtins.foldl' (acc: e: acc // e.layer.${name}) (defaults.${name} or { }) contribs
+              else if strategy == "semilattice-set" then
+                builtins.foldl' (
+                  acc: e: builtins.foldl' (a2: x: if builtins.elem x a2 then a2 else a2 ++ [ x ]) acc e.layer.${name}
+                ) (defaults.${name} or [ ]) contribs
               else
                 throw "rec.foldLayersTraced: unknown strategy '${strategy}' for field '${name}'";
             defaultEntry =
