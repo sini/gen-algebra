@@ -326,6 +326,7 @@ record.foldLayers {
 - **`"replace"`** (default) — last layer providing the field wins. CSS cascade order: later overrides earlier.
 - **`"append"`** — list concatenation across all layers in order, starting from `defaults`. Result: `defaults ++ layer1 ++ layer2 ++ ...`
 - **`"recursive"`** — nested attrset merge (`//`) across layers in order. Later layers override earlier keys.
+- **`"semilattice-set"`** — list-valued fields merged by set-union: fold each layer's elements into the accumulator, skipping any already present (dedup by `builtins.elem`). Unlike the three above — which are *associative* but order-sensitive (`replace` and `append` both depend on layer order, `recursive` on override order) — set-union is **ACI**: **a**ssociative, **c**ommutative, and **i**dempotent. The result is the layers' elements viewed as a set, so it is invariant under layer reordering and under duplicate contributions. This is the join of a set-union join-semilattice (∪ over finite sets); it is the strategy that lets `foldLayersTraced` stand in for the "semi-naïve evaluation over a lattice" merge of Datafun (ICFP 2016) and Flix (PLDI 2016), where a relation's value is the least upper bound of its contributions rather than a last-writer-wins cell.
 
 ```nix
 record.foldLayers {
