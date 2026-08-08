@@ -175,11 +175,11 @@ Each row verified in this run by evaluating against `a = import ./lib` from the 
 
 ## Theory
 
-`README.md:499-507` states its claims as a table with a **Relationship** column; the three entries and their labels are reproduced below, plus one citation made in the body but absent from that table.
+`README.md` § *Theoretical Foundations* states its claims as a table with a **Relationship** column; the three entries and their labels are reproduced below, plus one citation made in the body but absent from that table.
 
 **Implements structure / informed by** (README's own compound label)
 
-- **Palmer et al. (2024), *Intensional Functions*** — the search monad with name-keyed continuation dedup (§3) in `lib/search.nix`, and the three eliminators `__functor` / `name` / `closure` (§2.2-2.3) in `lib/intensional.nix`. README records the equality and dedup as **name-only**, an explicit over-approximation of Palmer's name+closure conservative equality (§2.3 Fig 5) and *not* the Theorem 1 result, on the grounds that gen's `closure` is programmer-declared rather than compiler-extracted (`README.md:214`).
+- **Palmer et al. (2024), *Intensional Functions*** — the search monad with name-keyed continuation dedup (§3) in `lib/search.nix`, and the three eliminators `__functor` / `name` / `closure` (§2.2-2.3) in `lib/intensional.nix`. README records the equality and dedup as **name-only**, an explicit over-approximation of Palmer's name+closure conservative equality (§2.3 Fig 5) and *not* the Theorem 1 result, on the grounds that gen's `closure` is programmer-declared rather than compiler-extracted (`README.md` § *`intensionalEq`*).
 
 **Implements**
 
@@ -188,7 +188,7 @@ Each row verified in this run by evaluating against `a = import ./lib` from the 
 
 **Cited in the body, not in the Foundations table**
 
-- **Datafun (ICFP 2016)** and **Flix (PLDI 2016)** — `README.md:329` grounds the `"semilattice-set"` strategy as the join of a set-union join-semilattice (ACI: associative, commutative, idempotent), standing in for those systems' lattice-valued merge. That strategy is `foldLayersTraced`-only; see traps.
+- **Datafun (ICFP 2016)** and **Flix (PLDI 2016)** — `README.md` § *`foldLayers`* (the "Strategy types" list, `"semilattice-set"` bullet) grounds the `"semilattice-set"` strategy as the join of a set-union join-semilattice (ACI: associative, commutative, idempotent), standing in for those systems' lattice-valued merge. That strategy is `foldLayersTraced`-only; see traps.
 
 **Checked invariant**: zero dependencies — `builtins` only, no nixpkgs `lib`, no module system — enforced by `ci/tests/purity.nix` (`test-library-source-is-nixpkgs-lib-free`) over `lib/**.nix` recursively plus root `flake.nix` and `default.nix`, scanning comment-stripped source for `nixpkgs`, `lib.`, `{ lib }`, `{ lib,`, `evalModules`, `mkOption`.
 
