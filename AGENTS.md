@@ -13,7 +13,7 @@ Quoted text is the owner's own `flake.nix` `description` field, verbatim.
 | General-purpose list/string/attr utilities — gen-algebra vendors its own private `drop` rather than import one (`lib/search.nix:37-43`) | `gen-prelude` — "gen-prelude: vendored, nixpkgs-lib-free pure utilities for the gen ecosystem" |
 | Type checking / structural verification | `gen-types` — "gen-types: pure, nixpkgs-lib-free structural type checker for the gen ecosystem" |
 | Module merge, `evalModules`, options — `ci/tests/purity.nix` fails the suite on `evalModules` / `mkOption` / `lib.` / `nixpkgs` anywhere in `lib/**.nix`, root `flake.nix`, `default.nix` | `gen-merge` — "gen-merge — pure-Nix byte-mode module MERGE engine (evalModuleTree) for the pure-gen module system" |
-| Typed registries, kinds/instances, and module-tier identity (`mkIdentityModule`) — `lib/identity.nix:2-3` records the module tier as relocated | `gen-schema` — "gen-schema: typed record registry with extension points for the pure-gen module system" |
+| Typed registries, kinds/instances, and **all** identity minting — `hashIdentity` is the substrate's single minting authority, and gen-algebra's standalone `name`+`fields` hasher retired into it | `gen-schema` — "gen-schema: typed record registry with extension points for the pure-gen module system" |
 | Stratified settings resolution, refs-as-data, graduated injection — the in-ecosystem consumer of `record.foldLayersTraced` (`gen-settings/lib/resolve.nix:33`) | `gen-settings` — "gen-settings — stratified settings resolution as a pure layered fold, with refs-as-data, structured provenance, and the graduated injection construct" |
 | Aspect traits / classification / composition types | `gen-aspects` — "gen-aspects: aspect-oriented composition types (pure-gen, re-hosted on gen-merge)" |
 | Graph traversal, condensation, query combinators | `gen-graph` — "gen-graph: accessor-based graph query combinators" |
@@ -122,7 +122,6 @@ No `isRight` / `fromRight` / `bimap` — consumers test `? right` / `? left` dir
 |---|---|
 | `mkIntensional` | `name -> closure -> fn -> { name; closure; fn; __functor; }` (callable) |
 | `intensionalEq` | `intensional -> intensional -> bool` (compares `.name` only) |
-| `mkIdentity` | `{ name, fields ? {} } -> "${name}:${sha256(toJSON fields)}"` |
 
 ## Entry points by task
 
@@ -132,7 +131,6 @@ No `isRight` / `fromRight` / `bimap` — consumers test `? right` / `? left` dir
 | Read accumulated facts | `search.lookup` (values by key) / `.results` (emitted items) |
 | Make a continuation deduplicable | `mkIntensional "<name>" {} fn` — a bare lambda is never deduped |
 | Compare two functions for identity | `intensionalEq` — name-only; fold any distinguishing data into the name |
-| Content-address a name + serializable fields | `mkIdentity { name; fields; }` |
 | Build a record whose labels can shadow | `record.fromAttrs` then `record.extend` |
 | Read the current binding / the shadowed one | `record.select r l` / `record.select (record.restrict r l) l` |
 | Ship a record to ordinary Nix | `record.emit` (heads) or `record.emitAll r [ labels ]` (stacks preserved) |
@@ -169,13 +167,11 @@ Each row verified in this run by evaluating against `a = import ./lib` from the 
 | `record.emit` silently discards shadowed stack values; only `emitAll` with the label listed preserves them | `lib/rec.nix:54,56-61`; on a two-deep `level` stack: `emit env` ⇒ `{"level":"warn"}`, `emitAll env [ "level" ]` ⇒ `{"level":["warn","info"]}`, `depth env "level"` ⇒ `2`. Tests: `test-emit-takes-head`, `test-emitAll-full-stacks` |
 | `record.labels` is *not* insertion order in general: `fromAttrs` seeds `__order` from `builtins.attrNames` (lexicographic), and later `extend`s append | `lib/rec.nix:63-71,93`; `labels (fromAttrs { zebra = 1; apple = 2; middle = 3; })` ⇒ `["apple","middle","zebra"]`; extending that with `"aaa"` ⇒ `["apple","zebra","aaa"]`. `combine` keeps left's order then right-only labels: ⇒ `["z","a"]` |
 | `combine` retains both stacks rather than discarding the right — the shadowed value stays reachable through `restrict` | `lib/rec.nix:122,129`; `combine (fromAttrs { k = "L"; }) (fromAttrs { k = "R"; })` ⇒ stack `["L","R"]`, `select` ⇒ `"L"`, `select (restrict c "k") "k"` ⇒ `"R"`. Tests: `test-combine-stacks`, `test-combine-left-order-first` |
-| `show` / `showCompact` and `mkIdentity` route values through `builtins.toJSON` — any function-valued field throws | `lib/rec.nix:99,106`, `lib/identity.nix:13`; all three ⇒ `error: cannot convert a function to JSON` *(stderr)* |
+| `show` / `showCompact` route values through `builtins.toJSON` — any function-valued field throws, and the failure escapes `tryEval` rather than being catchable | `lib/rec.nix:99,106`; both ⇒ `error: cannot convert a function to JSON` *(stderr)* |
 | `search.emit` and `record.emit` share a name and are unrelated operations | `lib/search.nix:20-23` appends to `results` (⇒ `["x"]`); `lib/rec.nix:54` converts a record to a plain attrset (⇒ `{"x":1}`) |
 | `flattenAttrs` treats `{}` as a leaf, so an empty attrset survives as a value rather than vanishing | `lib/rec.nix:323`; `flattenAttrs {} { a = {}; b = { c = 1; }; }` ⇒ `{"a":{},"b.c":1}`. Test: `test-flatten-empty` |
 | `unflattenAttrs` splits on every literal `.`, so `foldNestedLayers` silently re-nests a key that already contained one | `lib/rec.nix:352`; `foldNestedLayers { layers = [ { "a.b" = 1; } ]; }` ⇒ `{"a":{"b":1}}` |
 | `mkIntensional` takes `closure` second and `fn` third; `flattenAttrs` takes its config and target as two arguments while the fold family takes one attrset | `lib/intensional.nix:4`, `lib/rec.nix:307-312`; `(mkIntensional "n" { tag = 1; } (x: x)).closure` ⇒ `{"tag":1}`; `flattenAttrs { prefix = "p"; } { a = 1; }` ⇒ `{"p.a":1}`. Tests: `test-mkIntensional-closure-preserved`, `test-flatten-with-prefix` |
-| `mkIdentity` field *declaration* order does not affect the hash (Nix canonicalises attribute order through `toJSON`); `fields` defaults to `{}` and still hashes | `lib/identity.nix:13`; `{ b = 2; aa = 1; }` and `{ aa = 1; b = 2; }` ⇒ equal; `mkIdentity { name = "h"; }` ⇒ `"h:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"`. Tests: `test-deterministic`, `test-different-fields-different-hash`, `test-empty-fields` |
-| `lib/identity.nix:2-3` points at `gen-schema (nix/lib/identity.nix)` for `mkIdentityModule`; that path does not exist — gen-schema's file is `lib/identity.nix` | `ls gen-schema/nix/lib/identity.nix` ⇒ `No such file or directory`; `grep -rl mkIdentityModule gen-schema/lib` ⇒ `lib/identity.nix`, `lib/instance.nix`, `lib/default.nix`. Cross-repo citation |
 
 ## Theory
 
@@ -207,7 +203,7 @@ The namespace set is discovered by `isAttrs` rather than hardcoded, so a new nam
 Current output (verbatim):
 
 ```json
-{"either":["chain","collectErrors","left","mapR","pipe","right"],"record":["assertSatisfies","combine","compose","depth","emit","emitAll","empty","extend","flattenAttrs","foldLayers","foldLayersTraced","foldNestedLayers","fromAttrs","has","labels","mixin","mixinBeta","rename","restrict","satisfies","select","show","showCompact","unflattenAttrs","update","upsert"],"search":["converge","emit","empty","foldl","has","insert","lookup","on"],"top":["either","intensionalEq","mkIdentity","mkIntensional","record","search"]}
+{"either":["chain","collectErrors","left","mapR","pipe","right"],"record":["assertSatisfies","combine","compose","depth","emit","emitAll","empty","extend","flattenAttrs","foldLayers","foldLayersTraced","foldNestedLayers","fromAttrs","has","labels","mixin","mixinBeta","rename","restrict","satisfies","select","show","showCompact","unflattenAttrs","update","upsert"],"search":["converge","emit","empty","foldl","has","insert","lookup","on"],"top":["either","intensionalEq","mkIntensional","record","search"]}
 ```
 
 The command observes export *names* only; signatures, strategy vocabularies, trap rows and `file:line` refs rot without changing it.

@@ -73,7 +73,6 @@ gen-algebra has zero flake inputs — this lineage shows where each primitive wa
       inherit (gen.lib)
         mkIntensional
         intensionalEq
-        mkIdentity
         record
         either
         ;
@@ -91,14 +90,14 @@ let
   gen = import ./path/to/gen-algebra;
 in
 {
-  inherit (gen) search record either mkIntensional mkIdentity;
+  inherit (gen) search record either mkIntensional;
 }
 # gen.search.empty, gen.record.fromAttrs, gen.either.right, … all `builtins`-only.
 ```
 
 ## API Reference
 
-Every exported name is documented below, grouped by primitive family. The full surface is `search` (8), `record` (26), `either` (6), plus top-level `mkIntensional`, `intensionalEq`, and `mkIdentity` — verified against `nix eval .#lib`.
+Every exported name is documented below, grouped by primitive family. The full surface is `search` (8), `record` (26), `either` (6), plus top-level `mkIntensional` and `intensionalEq` — verified against `nix eval .#lib`.
 
 ### Search Monad
 
@@ -441,17 +440,6 @@ either.chain (x: if x > 0 then either.right (x * 10) else either.left "neg") (ei
 # → { right = 30; }
 ```
 
-### Standalone Identity
-
-Palmer §2.2 program-point identity as a standalone hash. No module system dependency.
-
-#### `mkIdentity`
-
-```nix
-mkIdentity { name = "host"; fields = { addr = "10.0.1.1"; }; }
-# → "host:${sha256(toJSON { addr = "10.0.1.1"; })}"
-```
-
 ## Demo
 
 See [`examples/demo/`](examples/demo/) for a self-contained example exercising search monad workflow, intensional dedup, record algebra, and either combinators.
@@ -471,10 +459,9 @@ gen-algebra/
   default.nix              — non-flake entry (bare lib value: import ./lib, no argument)
   flake.nix                — flake output (single `lib` value, no __functor)
   lib/
-    default.nix            — exports search + intensional + identity + either + record
+    default.nix            — exports search + intensional + either + record
     search.nix             — Palmer §3 Search monad (8 public primitives)
     intensional.nix        — mkIntensional, intensionalEq
-    identity.nix           — mkIdentity (standalone hash)
     either.nix             — Either combinators (right, left, pipe, collectErrors, mapR, chain)
     rec.nix                — Leijen §2 record algebra with scoped labels + Bracha §2-4 mixin composition + foldLayers
   ci/                      — nix-unit test suite (incl. the purity invariant)
@@ -486,7 +473,7 @@ gen-algebra is fully pure — zero dependencies of any kind, not even nixpkgs `l
 
 ## Testing
 
-Tests live in `ci/` and run under nix-unit (via `gen.lib.mkCi`). 128 test cases across 13 suites (`either`, `identity-standalone`, `intensional`, `purity`, `rec-primitives`, `rec-derived`, `rec-row`, `rec-composition`, `rec-fold-layers`, `rec-fold-layers-traced`, `rec-nested-layers`, `search-primitives`, `search-converge`), including the purity invariant that fails on any stray `lib.types` / `mkOption` / `evalModules` in the library source. Requires nix-unit.
+Tests live in `ci/` and run under nix-unit (via `gen.lib.mkCi`). 127 test cases across 12 suites (`either`, `intensional`, `purity`, `rec-primitives`, `rec-derived`, `rec-row`, `rec-composition`, `rec-fold-layers`, `rec-fold-layers-traced`, `rec-nested-layers`, `search-primitives`, `search-converge`), including the purity invariant that fails on any stray `lib.types` / `mkOption` / `evalModules` in the library source. Requires nix-unit.
 
 ```bash
 # all suites
