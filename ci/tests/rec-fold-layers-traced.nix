@@ -127,6 +127,46 @@ let
     ];
   };
 
+  # The two shared-domain shapes the three fixtures above miss: `replace` declared
+  # EXPLICITLY (the others reach it only by omission) and a field carried by `defaults`
+  # alone, which no layer contributes.
+  explicitReplaceArgs = {
+    strategies = {
+      port = "replace";
+    };
+    defaults = {
+      port = 80;
+      workers = 4;
+    };
+    layers = [
+      { port = 443; }
+      { port = 8080; }
+    ];
+    layerNames = [
+      "l0"
+      "l1"
+    ];
+  };
+
+  # A caller-owned per-entry refinement, domain-free: the derived reading is a thunk, and
+  # for one designated value it diverges. This stands in for a consumer whose refinement
+  # follows a reference the entry carries and whose target is absent.
+  diverging = "DIVERGING";
+  refineArgs = {
+    defaults = {
+      f = diverging;
+    };
+    layers = [ { f = "wins"; } ];
+    layerNames = [ "l0" ];
+    entryTransform = field: entry: {
+      inherit (entry) layer;
+      inherit field;
+      derived =
+        if entry.value == diverging then throw "rec-test: entry refinement diverged" else entry.value;
+    };
+  };
+  refineChain = (foldLayersTraced refineArgs).provenance.f;
+
   sortStrs = builtins.sort builtins.lessThan;
 
   stripTrace =
@@ -152,6 +192,14 @@ in
 
     test-value-identity-recursive = {
       expr = (foldLayersTraced recursiveArgs).value == foldLayers (stripTrace recursiveArgs);
+      expected = true;
+    };
+
+    # The domain the guard names is the whole of what both siblings accept, so it has to
+    # include the explicitly-declared `replace` and the no-contribution path, not only the
+    # shapes the strategy-specific fixtures happen to exercise.
+    test-value-identity-explicit-replace-and-default-only = {
+      expr = (foldLayersTraced explicitReplaceArgs).value == foldLayers (stripTrace explicitReplaceArgs);
       expected = true;
     };
 
@@ -426,6 +474,85 @@ in
           }).value.x
         ).success;
       expected = false;
+    };
+
+    # --- entryTransform: the refinement is applied, and NON-INTERFERENCE holds. ---
+
+    # Arming: the transform runs, and it is handed the field name. Every other test in this
+    # file omits `entryTransform` entirely, so those are the paired absence readings.
+    test-entry-transform-applied = {
+      expr = builtins.map (e: {
+        inherit (e) layer field;
+      }) refineChain;
+      expected = [
+        {
+          layer = "default";
+          field = "f";
+        }
+        {
+          layer = "l0";
+          field = "f";
+        }
+      ];
+    };
+
+    # Same fixture with the transform removed: the chain is emitted untransformed. Without
+    # this arm the tests above could not distinguish the hook from a hard-coded shape.
+    test-entry-transform-absent-is-untransformed = {
+      expr = (foldLayersTraced (removeAttrs refineArgs [ "entryTransform" ])).provenance.f;
+      expected = [
+        {
+          layer = "default";
+          value = "DIVERGING";
+        }
+        {
+          layer = "l0";
+          value = "wins";
+        }
+      ];
+    };
+
+    # Empty control: no defaults and no layers ⇒ no fields, so the transform is never
+    # reached. It throws unconditionally, so a run that applied it could not report `{ }`,
+    # and the non-emptiness the arms above assert is a reading rather than the instrument.
+    test-entry-transform-empty = {
+      expr =
+        (foldLayersTraced { entryTransform = _field: _entry: throw "rec-test: must not run"; }).provenance;
+      expected = { };
+    };
+
+    # Non-interference — the chain's SPINE is forceable while one entry's refinement diverges.
+    test-entry-transform-spine-forceable = {
+      expr = builtins.length refineChain;
+      expected = 2;
+    };
+
+    # Non-interference — the diverging entry's OWN metadata is forceable.
+    test-entry-transform-metadata-forceable = {
+      expr = (builtins.head refineChain).layer;
+      expected = "default";
+    };
+
+    # Non-interference — a SIBLING entry's refinement is forceable.
+    test-entry-transform-sibling-forceable = {
+      expr = (lib.last refineChain).derived;
+      expected = "wins";
+    };
+
+    # ...and the divergence is real: forcing that entry's own refinement throws. Without
+    # this the three arms above would pass against a transform that never diverges.
+    test-entry-transform-entry-throws-on-force = {
+      expr = (builtins.tryEval (builtins.deepSeq (builtins.head refineChain).derived true)).success;
+      expected = false;
+    };
+
+    # Non-interference — the value path never applies the transform. A contaminated value
+    # would be the transformed record here, not the winning contribution.
+    test-entry-transform-value-untouched = {
+      expr = (foldLayersTraced refineArgs).value;
+      expected = {
+        f = "wins";
+      };
     };
   };
 }

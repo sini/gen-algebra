@@ -214,12 +214,33 @@ let
       );
 
     # Like foldLayers, but also returns a per-field provenance trace, in one pass.
-    # value is byte-identical to (foldLayers { inherit strategies defaults layers; }).
+    # value is byte-identical to (foldLayers { inherit strategies defaults layers; })
+    # ON THE STRATEGIES BOTH ACCEPT — "replace" (explicit or implicit), "append",
+    # "recursive" — which is what the value-identity guards in
+    # ci/tests/rec-fold-layers-traced.nix hold. The agreement is not unconditional:
+    # "semilattice-set" resolves here and foldLayers refuses it, so the two are siblings
+    # over a shared domain rather than one primitive with two return shapes.
     # layerNames: string labels aligned 1:1 with layers (least-specific first).
     # provenance.<field> = ordered [{ layer; value; }] — default first (when present),
     # then each contributing layer. For "replace" the LAST entry is effective; the
     # leading default is informational. For "append"/"recursive" the listed values
     # are the accumulation.
+    #
+    # entryTransform: an optional refinement of the emission, `field -> entry -> entry'`,
+    # applied to every entry of that field's chain, the default entry included. It exists so
+    # that a derived reading of an entry — the entry's value under a substitution the caller
+    # owns — is emitted BY the traced fold rather than re-mapped over its output afterwards.
+    # It is handed the field name because a refinement that cannot see which field it refines
+    # cannot report one. The fold learns no vocabulary from it: the transform is opaque here
+    # exactly as layer labels are.
+    #
+    # NON-INTERFERENCE. Application is per entry and demand-driven (call-by-need, Launchbury
+    # 1993 §2 — what `map` inherits here): forcing a chain's spine, one entry's own transformed
+    # record, or any sibling entry never applies the transform to another entry, and forcing
+    # `.value` never applies it at all. So a transform lazy in its derived part leaves a
+    # diverging entry harmless to the rest of the trace, which is the property that separates
+    # this from a consumer-side `map`. Absent, the chain is emitted untransformed and no
+    # per-entry application is allocated.
     foldLayersTraced =
       {
         strategies ? { },
@@ -227,6 +248,7 @@ let
         layers ? [ ],
         layerNames ? [ ],
         defaultLabel ? "default",
+        entryTransform ? null,
       }:
       assert builtins.length layerNames == builtins.length layers;
       let
@@ -284,10 +306,11 @@ let
               layer = e.name;
               value = e.layer.${name};
             }) contribs;
+            entries = defaultEntry ++ contribEntries;
           in
           {
             inherit value;
-            provenance = defaultEntry ++ contribEntries;
+            provenance = if entryTransform == null then entries else builtins.map (entryTransform name) entries;
           };
 
         resolved = builtins.listToAttrs (

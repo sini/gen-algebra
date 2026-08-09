@@ -97,12 +97,14 @@ Six top-level names: three namespaces (`search`, `record`, `either`) and three b
 | Export | Signature |
 |---|---|
 | `foldLayers` | `{ strategies ? {}; defaults ? {}; layers ? []; } -> attrset` |
-| `foldLayersTraced` | `{ strategies ? {}; defaults ? {}; layers ? []; layerNames ? []; defaultLabel ? "default"; } -> { value; provenance; }` |
+| `foldLayersTraced` | `{ strategies ? {}; defaults ? {}; layers ? []; layerNames ? []; defaultLabel ? "default"; entryTransform ? null; } -> { value; provenance; }` |
 | `flattenAttrs` | `{ strategies ? {}; prefix ? ""; } -> attrset -> attrset` (two arguments) |
 | `unflattenAttrs` | `attrset -> attrset` |
 | `foldNestedLayers` | `{ strategies ? {}; defaults ? {}; layers ? []; } -> attrset` (flatten → `foldLayers` → unflatten) |
 
-Strategy vocabulary is **not uniform**: `foldLayers` and `foldNestedLayers` accept `"replace"` (default) / `"append"` / `"recursive"` (`lib/rec.nix:200-207`); `foldLayersTraced` accepts those plus `"semilattice-set"` (`lib/rec.nix:254-265`). Layers are least-specific first.
+Strategy vocabulary is **not uniform**: `foldLayers` and `foldNestedLayers` accept `"replace"` (default) / `"append"` / `"recursive"` (`lib/rec.nix`, `foldLayers`'s `resolveField`); `foldLayersTraced` accepts those plus `"semilattice-set"` (its own `resolve`). Layers are least-specific first.
+
+`entryTransform` is `field -> entry -> entry'`, applied to every entry of a field's provenance chain including the default entry. It is **not** a post-hoc `map`: application is per entry and demand-driven, so forcing the chain's spine, one entry's own record, or a sibling entry never applies it elsewhere, and the `value` path never applies it at all. A transform lazy in its derived part therefore leaves a diverging entry harmless to the rest of the trace. Omitted, the chain is emitted untransformed.
 
 **Either** — `lib/either.nix`, reached as `either.*`. Values are `{ right = v; }` | `{ left = e; }`.
 
@@ -138,6 +140,7 @@ No `isRight` / `fromRight` / `bimap` — consumers test `? right` / `? left` dir
 | Assert a record carries required labels | `record.satisfies` (bool) / `record.assertSatisfies` (throws) |
 | Merge priority tiers of plain attrsets | `record.foldLayers { strategies; defaults; layers; }` |
 | Same, but needing per-field provenance or set-union merge | `record.foldLayersTraced` (adds `layerNames`, `"semilattice-set"`) |
+| Emit a *derived* reading of each provenance entry, without a diverging one poisoning the chain | `record.foldLayersTraced`'s `entryTransform` — never a `map` over the finished provenance |
 | Merge nested attrsets by tier | `record.foldNestedLayers` (or `flattenAttrs` / `unflattenAttrs` directly) |
 | Short-circuit a validation chain | `either.pipe` |
 | Report every validation failure at once | `either.collectErrors` |
@@ -148,9 +151,10 @@ Each row verified in this run by evaluating against `a = import ./lib` from the 
 
 | Trap | Evidence |
 |---|---|
-| `"semilattice-set"` works in `foldLayersTraced` but **throws** in `foldLayers` and `foldNestedLayers` | `lib/rec.nix:200-207` vs `254-265`; traced ⇒ `{"t":["x","y","z"]}`, both others ⇒ `error: rec.foldLayers: unknown strategy 'semilattice-set' for field 't'` *(stderr)*. The byte-identity guard `test-value-identity-replace` / `-append` / `-recursive` (`ci/tests/rec-fold-layers-traced.nix`) covers the three shared strategies only; `grep -c semilattice` ⇒ 15 in `rec-fold-layers-traced.nix`, 0 in `rec-fold-layers.nix`, 0 in `rec-nested-layers.nix` |
+| `"semilattice-set"` works in `foldLayersTraced` but **throws** in `foldLayers` and `foldNestedLayers` — so the two folds are siblings over a shared domain, never one primitive | `lib/rec.nix`, `foldLayers`'s `resolveField` vs `foldLayersTraced`'s `resolve`; traced ⇒ `{"t":["x","y","z"]}`, both others ⇒ `error: rec.foldLayers: unknown strategy 'semilattice-set' for field 't'` *(stderr)*. The byte-identity guard names its domain and covers all of it — `test-value-identity-replace` / `-append` / `-recursive` / `-explicit-replace-and-default-only` (`ci/tests/rec-fold-layers-traced.nix`) — which is what licenses a consumer computing an expected from `foldLayers`, on that domain and nowhere else; `grep -c semilattice` ⇒ 15 in `rec-fold-layers-traced.nix`, 0 in `rec-fold-layers.nix`, 0 in `rec-nested-layers.nix` |
 | An unknown strategy is **silent** until some layer contributes that field — the no-contribution branch never consults `strategies` | `lib/rec.nix:198-199`; `foldLayers { strategies.q = "BOGUS"; defaults.q = 1; layers = []; }` ⇒ `{"q":1}`, same call with `layers = [ { q = 1; } ]` ⇒ throws. Test: `test-unknown-strategy-throws` (`ci/tests/rec-fold-layers-traced.nix`) exercises the contributed branch only |
-| `foldLayersTraced` asserts `layerNames` is 1:1 with `layers` — omitting it is a hard failure, not a default | `lib/rec.nix:231`; `foldLayersTraced { layers = [ { a = 1; } ]; }` ⇒ `error: an integer with value '0' is not equal to an integer with value '1'`. Test: `test-length-mismatch-throws` |
+| `foldLayersTraced` asserts `layerNames` is 1:1 with `layers` — omitting it is a hard failure, not a default | `lib/rec.nix`, `foldLayersTraced`'s leading `assert`; `foldLayersTraced { layers = [ { a = 1; } ]; }` ⇒ `error: an integer with value '0' is not equal to an integer with value '1'`. Test: `test-length-mismatch-throws` |
+| `entryTransform` is absent by **sentinel**, not by an identity default — the untransformed chain costs no per-entry application, and a supplied transform is applied to the default entry too | `lib/rec.nix`, `foldLayersTraced`'s `resolve` (`if entryTransform == null`); one fixture read both ways ⇒ with a transform, each entry's `attrNames` is `["derived","field","layer"]`; with the field dropped, the chain is `[{"layer":"default","value":"D"},{"layer":"l0","value":"w"}]`. Tests: `test-entry-transform-applied` / `-absent-is-untransformed` / `-empty` (`ci/tests/rec-fold-layers-traced.nix`) |
 | A field named only in `strategies` never reaches the output — `allKeys` is drawn from `defaults` + `layers` | `lib/rec.nix:186-189`; `foldLayers { strategies.ghost = "append"; layers = [ { real = 1; } ]; }` ⇒ `{"real":1}` |
 | The layer-folding family takes **plain attrsets**; a `record` passed as a layer leaks its internals as ordinary fields | `lib/rec.nix:179-214` (no `__entries` handling); `builtins.attrNames (foldLayers { layers = [ (r.fromAttrs { a = 1; }) ]; })` ⇒ `["__entries","__order"]` |
 | `intensionalEq` is **name-only**: equal names compare equal even when closures *and* function bodies differ | `lib/intensional.nix:10`; `f1 = mkIntensional "same" {} (x: x)`, `f2 = mkIntensional "same" { different = true; } (y: y*2)` ⇒ `intensionalEq f1 f2` `true`, while `f1 5` ⇒ `5` and `f2 5` ⇒ `10`. Tests: `test-intensionalEq-same-key` / `-different-key` (`ci/tests/intensional.nix`) |
@@ -169,9 +173,9 @@ Each row verified in this run by evaluating against `a = import ./lib` from the 
 | `combine` retains both stacks rather than discarding the right — the shadowed value stays reachable through `restrict` | `lib/rec.nix:122,129`; `combine (fromAttrs { k = "L"; }) (fromAttrs { k = "R"; })` ⇒ stack `["L","R"]`, `select` ⇒ `"L"`, `select (restrict c "k") "k"` ⇒ `"R"`. Tests: `test-combine-stacks`, `test-combine-left-order-first` |
 | `show` / `showCompact` route values through `builtins.toJSON` — any function-valued field throws, and the failure escapes `tryEval` rather than being catchable | `lib/rec.nix:99,106`; both ⇒ `error: cannot convert a function to JSON` *(stderr)* |
 | `search.emit` and `record.emit` share a name and are unrelated operations | `lib/search.nix:20-23` appends to `results` (⇒ `["x"]`); `lib/rec.nix:54` converts a record to a plain attrset (⇒ `{"x":1}`) |
-| `flattenAttrs` treats `{}` as a leaf, so an empty attrset survives as a value rather than vanishing | `lib/rec.nix:323`; `flattenAttrs {} { a = {}; b = { c = 1; }; }` ⇒ `{"a":{},"b.c":1}`. Test: `test-flatten-empty` |
-| `unflattenAttrs` splits on every literal `.`, so `foldNestedLayers` silently re-nests a key that already contained one | `lib/rec.nix:352`; `foldNestedLayers { layers = [ { "a.b" = 1; } ]; }` ⇒ `{"a":{"b":1}}` |
-| `mkIntensional` takes `closure` second and `fn` third; `flattenAttrs` takes its config and target as two arguments while the fold family takes one attrset | `lib/intensional.nix:4`, `lib/rec.nix:307-312`; `(mkIntensional "n" { tag = 1; } (x: x)).closure` ⇒ `{"tag":1}`; `flattenAttrs { prefix = "p"; } { a = 1; }` ⇒ `{"p.a":1}`. Tests: `test-mkIntensional-closure-preserved`, `test-flatten-with-prefix` |
+| `flattenAttrs` treats `{}` as a leaf, so an empty attrset survives as a value rather than vanishing | `lib/rec.nix`, `flattenAttrs`'s `go` (the `v != { }` guard on its descend branch); `flattenAttrs {} { a = {}; b = { c = 1; }; }` ⇒ `{"a":{},"b.c":1}`. Test: `test-flatten-empty` |
+| `unflattenAttrs` splits on every literal `.`, so `foldNestedLayers` silently re-nests a key that already contained one | `lib/rec.nix`, `unflattenAttrs`'s `parts` (`builtins.split "\\."`); `foldNestedLayers { layers = [ { "a.b" = 1; } ]; }` ⇒ `{"a":{"b":1}}` |
+| `mkIntensional` takes `closure` second and `fn` third; `flattenAttrs` takes its config and target as two arguments while the fold family takes one attrset | `lib/intensional.nix:4`, `lib/rec.nix`'s `flattenAttrs` signature (`{ strategies, prefix }: attrs:`, two arguments); `(mkIntensional "n" { tag = 1; } (x: x)).closure` ⇒ `{"tag":1}`; `flattenAttrs { prefix = "p"; } { a = 1; }` ⇒ `{"p.a":1}`. Tests: `test-mkIntensional-closure-preserved`, `test-flatten-with-prefix` |
 
 ## Theory
 
@@ -189,6 +193,7 @@ Each row verified in this run by evaluating against `a = import ./lib` from the 
 **Cited in the body, not in the Foundations table**
 
 - **Datafun (ICFP 2016)** and **Flix (PLDI 2016)** — `README.md` § *`foldLayers`* (the "Strategy types" list, `"semilattice-set"` bullet) grounds the `"semilattice-set"` strategy as the join of a set-union join-semilattice (ACI: associative, commutative, idempotent), standing in for those systems' lattice-valued merge. That strategy is `foldLayersTraced`-only; see traps.
+- **Launchbury (1993), *A Natural Semantics for Lazy Evaluation*** — `README.md` § *`entryTransform`* and `lib/rec.nix`'s `foldLayersTraced` cite §2's call-by-need as the semantics the per-entry non-interference law rests on. The law is *stated and tested*, not implemented from the paper: Nix supplies the demand-driven forcing, and `entryTransform`'s contribution is to place the refinement where each entry's own demand reaches it.
 
 **Checked invariant**: zero dependencies — `builtins` only, no nixpkgs `lib`, no module system — enforced by `ci/tests/purity.nix` (`test-library-source-is-nixpkgs-lib-free`) over `lib/**.nix` recursively plus root `flake.nix` and `default.nix`, scanning comment-stripped source for `nixpkgs`, `lib.`, `{ lib }`, `{ lib,`, `evalModules`, `mkOption`.
 

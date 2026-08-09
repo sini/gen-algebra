@@ -354,10 +354,9 @@ record.foldLayers {
 
 #### `foldLayersTraced`
 
-Single-pass variant of `foldLayers` that also returns per-field provenance. The
-`value` is byte-identical to `foldLayers` given the same `strategies`, `defaults`,
-and `layers`. Takes additional `layerNames` (string labels aligned 1:1 with
-`layers`, least-specific first) and optional `defaultLabel`; returns
+Single-pass variant of `foldLayers` that also returns per-field provenance. Takes
+additional `layerNames` (string labels aligned 1:1 with `layers`, least-specific
+first), optional `defaultLabel`, and optional `entryTransform`; returns
 `{ value; provenance; }` where `provenance.<field>` is an ordered list of
 `{ layer; value; }` (default first when present, then each contributing layer).
 Powers settings stratification.
@@ -374,6 +373,46 @@ record.foldLayersTraced {
 #                         { layer = "system"; value = [ "system" ]; }
 #                         { layer = "user"; value = [ "user" ]; } ]; }
 ```
+
+**The `value` agrees with `foldLayers` on the strategies both accept**, and only
+there. Over `"replace"` — declared explicitly or reached by omission —
+`"append"`, `"recursive"`, and a field carried by `defaults` alone, the two
+return byte-identical values for the same `strategies`, `defaults` and `layers`;
+the value-identity guards in `ci/tests/rec-fold-layers-traced.nix` hold exactly
+that. They are **not** one primitive with two return shapes: `"semilattice-set"`
+resolves here and `foldLayers` refuses it. Computing an expected value from the
+untraced sibling is licensed on the shared domain and nowhere else.
+
+##### `entryTransform` — refining the emission, per entry, on demand
+
+`entryTransform` is an optional `field -> entry -> entry'` applied to every entry
+of a field's chain, the default entry included. It is for a caller that wants a
+*derived* reading of each entry — the entry's value under some substitution the
+caller owns — to be emitted **by** the fold rather than re-mapped over its output
+afterwards. The fold hands over the field name and learns nothing in return: the
+transform is opaque to it, exactly as layer labels are.
+
+```nix
+record.foldLayersTraced {
+  defaults = { font = "unset"; };
+  layers = [ { font = "mono"; } ];
+  layerNames = [ "host" ];
+  entryTransform = field: entry: { inherit (entry) layer; resolved = lookup field entry.value; };
+}
+# → provenance.font = [ { layer = "default"; resolved = <thunk>; }
+#                       { layer = "host";    resolved = <thunk>; } ]
+```
+
+**Non-interference.** Application is per entry and demand-driven (call-by-need,
+Launchbury 1993 §2). Forcing a chain's spine, one entry's own transformed record,
+or any sibling entry never applies the transform to another entry, and forcing
+`.value` never applies it at all. So a transform that is lazy in its derived part
+keeps a *diverging* entry — one whose refinement throws, because it points at
+something absent — harmless to the rest of the trace: the chain still has a
+length, the entry still reports which layer it came from, its siblings still
+resolve. That property, not the hook, is the capability; it is what a
+consumer-side `map` over the finished provenance cannot give you. Omitting
+`entryTransform` emits the chain untransformed with no per-entry application.
 
 #### Nested-layer variants
 
