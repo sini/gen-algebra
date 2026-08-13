@@ -355,10 +355,12 @@ record.foldLayers {
 #### `foldLayersTraced`
 
 Single-pass variant of `foldLayers` that also returns per-field provenance. Takes
-additional `layerNames` (string labels aligned 1:1 with `layers`, least-specific
+additional `layerNames` (opaque labels aligned 1:1 with `layers`, least-specific
 first), optional `defaultLabel`, and optional `entryTransform`; returns
 `{ value; provenance; }` where `provenance.<field>` is an ordered list of
 `{ layer; value; }` (default first when present, then each contributing layer).
+Any value is admissible as a layer name; the fold stores each verbatim into
+`provenance.<field>[].layer` and never reads one.
 Powers settings stratification.
 
 ```nix

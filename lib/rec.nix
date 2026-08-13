@@ -220,7 +220,9 @@ let
     # ci/tests/rec-fold-layers-traced.nix hold. The agreement is not unconditional:
     # "semilattice-set" resolves here and foldLayers refuses it, so the two are siblings
     # over a shared domain rather than one primitive with two return shapes.
-    # layerNames: string labels aligned 1:1 with layers (least-specific first).
+    # layerNames: opaque labels aligned 1:1 with layers (least-specific first). Any value
+    # is admissible; the fold stores each verbatim into provenance.<field>[].layer and
+    # never reads one.
     # provenance.<field> = ordered [{ layer; value; }] — default first (when present),
     # then each contributing layer. For "replace" the LAST entry is effective; the
     # leading default is informational. For "append"/"recursive" the listed values
