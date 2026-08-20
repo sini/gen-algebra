@@ -3,36 +3,32 @@
 # The constructor this file exercises took `name`, `closure` and `fn` from the caller and compared
 # on `name` alone. Both halves are gone: the closure is no longer a caller argument, so an
 # under-complete one is inexpressible, and the relation dispatches on the identity regime.
-{ lib, genAlgebra, ... }:
+{
+  lib,
+  genAlgebra,
+  genIdentity,
+  ...
+}:
 let
   inherit (genAlgebra) mkIntensional conservativeEq;
 
   admits = e: (builtins.tryEval e).success;
   refuses = e: !(builtins.tryEval e).success;
 
-  # ── the injected mint ──
+  # ── the injected mint, and it is the REAL one ──
   #
-  # A STAND-IN for the substrate's `hashIdentity`, which lives DOWNSTREAM of this library: importing
-  # it here would close a flake dependency cycle, and that inversion is precisely why the
-  # constructor takes the minting authority as a PARAMETER rather than reaching for it. A suite for
-  # the constructor therefore supplies its own.
+  # `hashIdentity` lives DOWNSTREAM of this library, which is exactly why the constructor takes the
+  # minting authority as a PARAMETER rather than reaching for it — importing it from `lib/` would
+  # close a flake dependency cycle.
   #
-  # ★ THIS FIXTURE IS NOT THE ENCODER AND NO CELL HERE IS EVIDENCE ABOUT ONE. It renders where the
-  # real authority digests, so what it can carry are the CONSTRUCTOR's arms: that the whole
-  # coordinate reaches the mint, that equal coordinates mint equal while any differing component
-  # mints differently, and that the constructor's own refusals fire. The ENCODER's arms — the
-  # type-tagged rendering, the two bounds, the forgery channel, the refusal of everything not inert
-  # — belong to `hashIdentity` and are asserted where it lives, in gen-schema's identity-encoding
-  # suite. A green run here says nothing about those.
-  mintStub =
-    kind: labels: valueOf:
-    "${kind}:"
-    + builtins.toJSON (
-      map (l: [
-        l
-        (valueOf l)
-      ]) labels
-    );
+  # ★ THE SUITE MAY TAKE IT ANYWAY, AND THAT IS A RULING. The zero-inputs contract binds the
+  # LIBRARY, not this directory: what it protects is a consumer's closure, and a consumer resolves
+  # `../lib` and never ci's lock (owner, 2026-08-20, den-hoag-soa1 — "ci/ has its own flake").
+  #
+  # ★ WHAT THAT BUYS, stated because the stand-in it replaces was honest about its own limits: a
+  # stub could carry the CONSTRUCTOR's arms and nothing else, so the composition of encoder and
+  # constructor was untested by construction — the one thing no suite on either side could reach.
+  # These cells now run against the authority itself.
 
   # ── the registry ──
   #
@@ -47,7 +43,7 @@ let
       mulN = args: (x: x * args.n);
     };
   };
-  mk = mkIntensional mintStub registry;
+  mk = mkIntensional genIdentity.hashIdentity registry;
 
   # A second registry differing ONLY in its declared revision, and a third differing only in its
   # member set. Both exist to show the coordinate covers the registry instance and not just
@@ -131,12 +127,16 @@ in
   # does work — two registries with the same member names and different builder bodies are
   # indistinguishable to every builtin, so nothing else can catch the collapse.
   flake.tests.intensional.test-refuses-registry-without-revision = {
-    expr = refuses (mkIntensional mintStub { inherit (registry) members; } "addN" { n = 1; });
+    expr = refuses (
+      mkIntensional genIdentity.hashIdentity { inherit (registry) members; } "addN" { n = 1; }
+    );
     expected = true;
   };
 
   flake.tests.intensional.test-refuses-registry-without-members = {
-    expr = refuses (mkIntensional mintStub { inherit (registry) revision; } "addN" { n = 1; });
+    expr = refuses (
+      mkIntensional genIdentity.hashIdentity { inherit (registry) revision; } "addN" { n = 1; }
+    );
     expected = true;
   };
 
@@ -195,8 +195,8 @@ in
     expr =
       let
         base = mk "addN" { n = 1; };
-        otherRevision = mkIntensional mintStub registryR2 "addN" { n = 1; };
-        widerMembers = mkIntensional mintStub registryWiderMembers "addN" { n = 1; };
+        otherRevision = mkIntensional genIdentity.hashIdentity registryR2 "addN" { n = 1; };
+        widerMembers = mkIntensional genIdentity.hashIdentity registryWiderMembers "addN" { n = 1; };
       in
       {
         revisionSeparates = conservativeEq base otherRevision;

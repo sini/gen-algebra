@@ -95,6 +95,21 @@
         "type": "github"
       }
     },
+    "gen-identity": {
+      "locked": {
+        "lastModified": 1787250593,
+        "narHash": "sha256-VTDCwpcG2K3V/fuzV02rrPlzaMASniSop/FyRZJ98WU=",
+        "owner": "sini",
+        "repo": "gen-identity",
+        "rev": "f27de8cedbfc34d8458642495cdf1e83febfd7ab",
+        "type": "github"
+      },
+      "original": {
+        "owner": "sini",
+        "repo": "gen-identity",
+        "type": "github"
+      }
+    },
     "git-hooks-nix": {
       "inputs": {
         "flake-compat": "flake-compat",
@@ -221,6 +236,7 @@
     "root": {
       "inputs": {
         "gen-harness": "gen-harness",
+        "gen-identity": "gen-identity",
         "nixpkgs": "nixpkgs_2"
       }
     },

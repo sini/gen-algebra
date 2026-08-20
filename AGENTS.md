@@ -127,6 +127,24 @@ No `isRight` / `fromRight` / `bimap` — consumers test `? right` / `? left` dir
 | `conservativeEq` | `intensional -> intensional -> bool` (dispatches on the `__mint` regime; digests where minted, whole-value `==` minus `__id` otherwise) |
 | `identityOf` / `regimeTagOf` / `isExact` / `comparisonSubject` | the identity-regime readers — a consumer that DECIDES dispatches on the tag and never reads `__mint.minted` raw |
 
+## The zero-inputs contract, and what it binds
+
+★ **It binds `flake.nix` and `lib/`, and it does NOT bind `ci/`.** Written down because it was
+previously stated in no flake comment, no AGENTS row and no ADR, so both readings could be
+manufactured from the tree.
+
+| | binds | why |
+|---|---|---|
+| root `flake.nix` + `lib/` | **YES** | what the contract protects is a CONSUMER's closure, and a consumer resolves `lib` — it gains no transitive dependency, not even nixpkgs |
+| `ci/` | **NO** | `ci/` is its own flake with its own lock, and no consumer ever resolves it. The suite may take whatever it needs to test this library honestly |
+
+Owner-ruled 2026-08-20 (`den-hoag-soa1`), verbatim: *"ci/ has its own flake."*
+
+★ **The consequence is live**: the suite takes the real `gen-identity` mint rather than a
+stand-in. A stand-in could carry the CONSTRUCTOR's arms and nothing else, which left the
+composition of encoder and constructor untested by construction — the one thing no suite on
+either side could reach on its own.
+
 ## Entry points by task
 
 | Task | Reach for |

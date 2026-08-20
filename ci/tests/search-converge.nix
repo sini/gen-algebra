@@ -1,23 +1,26 @@
-{ lib, genAlgebra, ... }:
+{
+  lib,
+  genAlgebra,
+  genIdentity,
+  ...
+}:
 let
   inherit (genAlgebra) search mkIntensional;
 
-  # ── the injected mint ──
+  # ── the injected mint, and it is the REAL one ──
   #
-  # A STAND-IN for the substrate's `hashIdentity`, which lives DOWNSTREAM of this library: importing
-  # it would close a flake dependency cycle, which is exactly why the constructor takes the minting
-  # authority as a PARAMETER. It renders where the real authority digests, so nothing here is
-  # evidence about the ENCODER — those arms live in gen-schema's identity-encoding suite. What it
-  # carries is that distinct coordinates reach the dedup loop as distinct keys.
-  mintStub =
-    kind: labels: valueOf:
-    "${kind}:"
-    + builtins.toJSON (
-      map (l: [
-        l
-        (valueOf l)
-      ]) labels
-    );
+  # `hashIdentity` lives DOWNSTREAM of this library, which is exactly why the constructor takes the
+  # minting authority as a PARAMETER rather than reaching for it — importing it from `lib/` would
+  # close a flake dependency cycle.
+  #
+  # ★ THE SUITE MAY TAKE IT ANYWAY, AND THAT IS A RULING. The zero-inputs contract binds the
+  # LIBRARY, not this directory: what it protects is a consumer's closure, and a consumer resolves
+  # `../lib` and never ci's lock (owner, 2026-08-20, den-hoag-soa1 — "ci/ has its own flake").
+  #
+  # ★ WHAT THAT BUYS, stated because the stand-in it replaces was honest about its own limits: a
+  # stub could carry the CONSTRUCTOR's arms and nothing else, so the composition of encoder and
+  # constructor was untested by construction — the one thing no suite on either side could reach.
+  # These cells now run against the authority itself.
 
   registry = {
     revision = "r1";
@@ -25,7 +28,7 @@ let
       counter = args: (v: s: search.emit [ "${args.tag}:${v}" ] s);
     };
   };
-  mk = mkIntensional mintStub registry;
+  mk = mkIntensional genIdentity.hashIdentity registry;
 
   # ── fixtures for the regimes the ENCODER CANNOT PRODUCE ──
   #
