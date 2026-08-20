@@ -22,7 +22,7 @@ Quoted text is the owner's own `flake.nix` `description` field, verbatim.
 | Matching predicates against graph positions — gen-select re-implements the one-line `intensionalEq` inline instead of importing it (`gen-select/lib/constructors.nix:126-134`; `gen-select/flake.nix:5` records "no gen-algebra") | `gen-select` — "gen-select: selector algebra for attributed graph positions" |
 | Rule dispatch, ordering, conflict resolution — `gen-dispatch/flake.nix:5` records gen-algebra as a removed (dead) input | `gen-dispatch` — "gen-dispatch: relational rule dispatch over ordered groups (the dispatch STEP)" |
 | Fold/scan/route as *dataflow over channels* (distinct from `record.foldLayers`, which folds plain attrsets) | `gen-pipe` — "gen-pipe — scoped channels + dataflow algebra (map/filter/fold/scan/route/join/tee) with B5 determinism, provenance, dedup, and class-aware contributions" |
-| Change propagation, AFFECTED sets, incremental rebuild | `gen-rebuild` — "gen-rebuild: pure-Nix incremental rebuilder core (Mokhov rebuilder dimension)" |
+| Change propagation, AFFECTED sets, incremental rebuild | `gen-memo` — "gen-memo — the incremental plane: a decision layer over the evaluator that never evaluates, only decides reuse" |
 | The nixpkgs boundary — building anything, injecting resolved values | `gen-flake` — "gen-flake — the pure composition boundary of the pure-gen module ecosystem" |
 
 Declared flake inputs on gen-algebra across the sibling set: `gen-link`, `gen-resolve`, `gen-schema`, `gen-settings`.
