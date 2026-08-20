@@ -241,6 +241,22 @@ than borrowed, and gen-algebra keeps its zero-dependency property.
 `closure` from the caller, so an under-complete closure was undetectable and two bodies could share
 one program point. Here both are derived: `name = ctor`, `closure = args`.
 
+**The registry construction is Lorenzen's lazy constructor** (§1). A lazy constructor holds inert
+first-order operands and no behaviour; the behaviour is *"the associated right-hand side of the data
+declaration"*, looked up by constructor when forcing arrives. `{ ctor; args; }` is inert, `fn = registry.members.<ctor> args` resolves only at demand, and no other field forces it — so the operands
+are readable on a value nobody has applied, as Lorenzen's `debug-show` reads a lazy constructor
+without forcing it. Where the two part company is openness: §8 records that lazy constructors *"have
+to be declared up-front in the data type definition"*, so one declaration site fixes the whole map and
+no coordinate is needed to say which map was meant. Here the registry is a value a caller supplies,
+which is exactly why `revision` has to enter the identity coordinate below.
+
+**Reynolds is the constructor-plus-inert-argument *shape* only** (§6, pp. 376-377) — not this
+registry. His record fields are read off the lambda's own global variables (§6's table gives one
+record equation per lambda expression) rather than chosen by a caller; elimination is a single
+interpretive `apply` doing closed case analysis over `FUNVAL = CLOSR ∪ SC ∪ EQ1 ∪ EQ2`, where dispatch
+here is an attribute selection into an open map; and that union is enumerated from every lambda
+expression in the program, making it a whole-program transformation with no registry to pass.
+
 **The identity coordinate is `(registry, ctor, args)`.** The registry term is not decoration — Nix has
 no linking, so a builder's free variables include its registry module instance's whole lexical scope.
 Without it, two pins of the substrate give the same `ctor` and the same `args` one identity for two
@@ -584,7 +600,9 @@ nix-unit --flake ./ci#tests.rec-composition --override-input gen-algebra .
 | Paper | Relationship | Used for |
 |-------|-------------|----------|
 | Palmer et al. (2024) [*Intensional Functions*](https://dl.acm.org/doi/10.1145/3689714) | Informed by | Search monad with continuation dedup (§3); the three intensional eliminators `__functor`/`name`/`closure` (§2.2-2.3). The constructor is an **encoder** (§5's Def 5.5–5.7 discharged by construction, as Palmer discharges them, rather than by a check), and both dedup and `conservativeEq` are **regime-dispatched** — exact where an identity is minted, a bucket or whole-value `==` otherwise — because Fig. 5 is a **conjunction** and the name-only relation gen used to ship merged behaviourally distinct functions. **The closure-consistency hypotheses discharge CONDITIONALLY**, on the registry `revision` a declaration can get wrong; the condition disappears only when builders become first-order terms. **Theorem 1 does not transfer** at all: it is a preservation theorem about 𝜆ITS reduction and gen is not 𝜆ITS. |
+| Lorenzen et al. (2025) [*First-Class Labels: First-Order Laziness*](https://doi.org/10.1145/3747530) | Implements | The registry construction in `lib/intensional.nix` **is** a lazy constructor (§1): inert first-order operands, with behaviour *"the associated right-hand side of the data declaration"* looked up by constructor at forcing, and the operands readable before anything is forced. The mechanism was identified at the landed construction rather than derived from the paper, and the fit is exact for §1's construct alone — none of the paper's memoization, in-place reuse or reference-counting results are claimed. **Where the two part company is openness:** §8 records the up-front data-type declaration as a *limitation*, and it is precisely because gen's registry is an open caller-supplied value that `revision` must enter the identity coordinate. |
+| Reynolds (1972) [*Definitional Interpreters for Higher-Order Programming Languages*](https://doi.org/10.1023/A:1010027404223) | Informed by | The constructor-plus-inert-argument **shape** only (§6, pp. 376-377) — replace a function value by a tag plus inert fields and interpret the tag. **Scoped deliberately:** his record fields are read off the lambda's own global variables (§6's one-record-equation-per-lambda table) where an author here chooses `args`; elimination is a single interpretive `apply` doing closed case analysis over `FUNVAL = CLOSR ∪ SC ∪ EQ1 ∪ EQ2` where dispatch here selects into an open map; and the union is enumerated from every lambda in the program, so it is a whole-program transformation with no registry. |
 | Leijen (2005) [*Extensible Records with Scoped Labels*](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/scopedlabels.pdf) | Implements | Record algebra with extension/selection/restriction (§2), scoped labels via shadow stacks (§2.1-3.2), row compatibility checks (§3.1) |
 | Bracha & Cook (1990) [*Mixin-Based Inheritance*](https://www.bracha.org/oopsla90.pdf) | Implements | Left-biased combination (§2.1 ⊕ operator), Smalltalk-direction mixin (§2.1), Beta-direction mixin (§2.2), associative mixin composition ⋆ (§4) |
 
-**Implements** means the code directly realizes the paper's constructs (`lib/search.nix` + `lib/intensional.nix` for Palmer's search monad and intensional *structure*; `lib/rec.nix` for Leijen and Bracha). One caveat: gen's intensional *equality* is a name-only over-approximation, not a faithful realization of Palmer's name+closure conservative equality (§2.3 Fig 5 / Theorem 1) — see [Intensional Functions](#intensional-functions).
+**Implements** means the code directly realizes the paper's constructs (`lib/search.nix` + `lib/intensional.nix` for Palmer's search monad and intensional *structure* and for Lorenzen's lazy constructor; `lib/rec.nix` for Leijen and Bracha). One caveat on the Palmer row: `conservativeEq` dispatches on the identity regime and merges strictly less than Fig. 5 rather than realizing it, the closure-consistency hypotheses discharge only *conditionally* — on a registry `revision` an author can get wrong — and Theorem 1 does not transfer at all. See [Intensional Functions](#intensional-functions).

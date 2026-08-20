@@ -204,11 +204,19 @@ Each row verified in this run by evaluating against `a = import ./lib` from the 
 
 ## Theory
 
-`README.md` § *Theoretical Foundations* states its claims as a table with a **Relationship** column; the three entries and their labels are reproduced below, plus one citation made in the body but absent from that table.
+`README.md` § *Theoretical Foundations* states its claims as a table with a **Relationship** column; the five entries and their labels are reproduced below, plus one citation made in the body but absent from that table.
 
 **Implements structure / informed by** (README's own compound label)
 
 - **Palmer et al. (2024), *Intensional Functions*** — the search monad with continuation dedup (§3) in `lib/search.nix`, and the eliminators `__functor` / `name` / `closure` (§2.2-2.3) in `lib/intensional.nix`. **The constructor is an ENCODER.** Palmer discharges closure consistency by construction at an encoder and never by a check (Def 5.5-5.7), and gen's constructor is that transposed: the author supplies `(ctor, args)` and a registry builds the function, so an under-complete closure is INEXPRESSIBLE rather than undetected. The identity coordinate carries the registry instance as well as `(ctor, args)`, because Nix has no linking and §6.1's capture rule therefore excludes nothing. **Both dedup and `conservativeEq` are regime-dispatched, not name-keyed:** Fig. 5 is a conjunction over identity AND closure, and a program point is constant across a constructor's instances, so a name-only relation merged behaviourally distinct values. Keys are exact where an identity is minted and **buckets** otherwise, membership decided by Nix `==` on the reified value minus `__id`, every key carrying a regime tag so the three arms occupy disjoint spaces. **The closure-consistency hypotheses discharge CONDITIONALLY**, on a registry `revision` an author can get wrong. **Theorem 1 does not transfer**: it is a preservation theorem about 𝜆ITS reduction and gen is not 𝜆ITS (`README.md` § *`conservativeEq`*).
+
+**Implements**
+
+- **Lorenzen et al. (2025), *First-Class Labels: First-Order Laziness*** — the registry construction in `lib/intensional.nix` IS a lazy constructor (§1): inert first-order operands (`{ ctor; args; }`), behaviour being "the associated right-hand side of the data declaration" looked up BY CONSTRUCTOR at forcing (`fn = registry.members.<ctor> args`), and the operands readable before anything is forced — the paper's `debug-show` property. Identified at the landed construction rather than derived from the paper, and scoped to §1's construct: none of the memoization, in-place-reuse or reference-counting results are claimed. **§8 is where the two part company** — lazy constructors "have to be declared up-front in the data type definition", so Lorenzen's map is CLOSED at one declaration site, while gen's registry is an open caller-supplied value. That openness is the whole reason `revision` must enter the identity coordinate.
+
+**Informed by**
+
+- **Reynolds (1972), *Definitional Interpreters for Higher-Order Programming Languages*** — the constructor-plus-inert-argument SHAPE only (§6, pp. 376-377): replace a function value by a tag plus inert fields and interpret the tag. **Deliberately scoped, because three things do NOT transfer.** His record fields are READ OFF the lambda's own global variables — §6's table gives one record equation per lambda expression, keyed by its "Global Variables" column — where an author here CHOOSES what `args` holds. Elimination is a single interpretive `apply` doing CLOSED case analysis over `FUNVAL = CLOSR ∪ SC ∪ EQ1 ∪ EQ2`, where dispatch here is an attribute selection into an open map. And that union is enumerated from every lambda expression in the program, so it is a whole-program transformation with no registry to pass. Cite Lorenzen, not Reynolds, for the registry.
 
 **Implements**
 

@@ -100,6 +100,30 @@ let
 
   # ── the encoder ──
   #
+  # ★ THIS CONSTRUCTION IS LORENZEN'S LAZY CONSTRUCTOR (§1). A lazy constructor carries INERT
+  # FIRST-ORDER OPERANDS and no behaviour at all: "whenever the run-time encounters an SAppend
+  # constructor, the associated right-hand side of the data declaration is executed". The behaviour is
+  # looked up BY CONSTRUCTOR at forcing, out of the declaration, so the operands can be read before
+  # anything is forced — Lorenzen's `debug-show` prints a lazy constructor without forcing further
+  # evaluation. That is `{ ctor; args; }` inert with `fn = registry.members.<ctor> args` resolved only
+  # at demand, and it is why `closure` needs no reification of its own: the operands ARE the value.
+  #
+  # WHERE THIS FORM IS OPEN AND LORENZEN'S IS CLOSED — which is what puts `revision` in the coordinate
+  # below. §8 names the closure as a limitation: lazy constructors "have to be declared up-front in the
+  # data type definition", so one declaration site fixes the whole constructor-to-behaviour map and no
+  # coordinate is needed to say which map was meant. Here the registry is a VALUE a caller supplies, so
+  # the map is open and two registries may offer one `ctor` over two builders.
+  #
+  # ★ REYNOLDS §6 (pp. 376-377) IS THE CONSTRUCTOR-PLUS-INERT-ARGUMENT SHAPE AND NOTHING MORE — NOT
+  # THIS REGISTRY. Three differences, each load-bearing here. His record's fields are READ OFF the
+  # lambda's own global variables — §6's table gives one record equation per lambda expression, keyed
+  # by the "Global Variables" column — where an author here CHOOSES what `args` holds. Elimination is a
+  # single interpretive `apply` doing CLOSED case analysis over `FUNVAL = CLOSR ∪ SC ∪ EQ1 ∪ EQ2`,
+  # where dispatch here is an attribute selection into an open map. And that union is enumerated from
+  # every lambda expression in the program, making it a whole-program transformation with no registry
+  # to pass at all. What transfers is only the shape: replace a function value by a tag plus inert
+  # fields, and interpret the tag.
+  #
   # ★ WHY THE REGISTRY COORDINATE IS IN THE PREIMAGE, and it is Palmer's §6.1 capture rule doing the
   # work. A builder is defined inside a registry module, so its free variables are its parameter
   # PLUS that module instance's own lexical scope — its dependency parameters and its let-bindings.
@@ -164,6 +188,10 @@ let
         # encoder-built value. It IS `args`: there is no second thing to under-supply.
         closure = args;
 
+        # The forcing step, and the ONLY place behaviour enters the value: Lorenzen's "associated
+        # right-hand side of the data declaration", looked up by constructor when demand arrives.
+        # No other field forces it — not `name`, not `closure`, not the mint's preimage — so the
+        # operands stay readable on a value nobody has applied.
         fn = registry.members.${ctor} args;
 
         # LAZY: an intensional value nobody compares hashes nothing. The preimage is TOTAL over the
