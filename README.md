@@ -221,7 +221,7 @@ registry = {
   revision = "r1";
   members.addN = args: (x: x + args.n);
 };
-mk = mkIntensional genSchema.hashIdentity registry;
+mk = mkIntensional genIdentity.hashIdentity registry;
 
 fn = mk "addN" { n = 1; };
 fn 5           # → 6 (callable via __functor)
@@ -230,8 +230,10 @@ fn.closure     # → { n = 1; } (the reified argument value — it IS `args`)
 fn.__mint      # → { minted = "its:…"; } (lazy: an unread identity hashes nothing)
 ```
 
-**The mint is injected.** `hashIdentity` is the substrate's one minting authority and it lives
-downstream of gen-algebra, so importing it would close a flake dependency cycle. Taking it as a
+**The mint is injected.** `hashIdentity` is the substrate's one minting authority and it lives in
+`gen-identity`, a dependency-free leaf. It was gen-schema's, downstream of gen-algebra, and
+importing it would have closed a flake dependency cycle — which is why the injection exists and why
+the authority became a leaf. Taking it as a
 constructor parameter mints the value inside the consumer's own eval — the identity is owned rather
 than borrowed, and gen-algebra keeps its zero-dependency property.
 
