@@ -182,7 +182,13 @@ s1 = search.on "users" (name: s: search.emit [ "hello:${name}" ] s) s0;
 
 Fixed-point convergence: fires all registered continuations on unprocessed values, repeats until stable. Safety guard at 1000 iterations.
 
-Continuations registered during convergence (via `on` inside a continuation body) fire in subsequent rounds. Intensional continuations (created with `mkIntensional`) with the same key watching the same index key are deduplicated.
+Continuations registered during convergence (via `on` inside a continuation body) fire in subsequent rounds. Intensional continuations (created with `mkIntensional`) watching the same index key are deduplicated **by identity regime**: where the wrapped value carries a minted identity the key is exact and presence decides, and otherwise the key is a **bucket** whose membership is decided by Nix `==` on the reified value **minus `__id`**.
+
+That distinction is load-bearing. A program point is constant across a constructor's instances, so a name-only key merged continuations that behave differently and dropped one **silently**; the bucket keeps both. The bucket's precision is an allocation artefact — one value registered twice dedups, two separately-constructed equal-shaped values do not — and since `converge` merges *work*, a finer relation costs dedup and never correctness.
+
+Every key also carries a one-character **regime tag** between the index key and the payload, so the three arms occupy disjoint key spaces. Without it a continuation merely *named* string-equal to another's minted digest lands on that digest's key and one of the two is dropped — and the drop is order-sensitive, so a probe that registers them in only one order reads clean.
+
+`__id` is excluded from the compared value, and it is the only exclusion. It is an accessor rather than distinguishing content, and where nothing is minted that accessor *is* the named refusal, so forcing it inside a bucket scan would detonate the decision the refusal exists to permit. One exclusion suffices: `__mint.minted` is the only other refusal-valued accessor, and the tagged sum shields it — its minted and sealed arms live under different key names, and Nix `==` decides on the name set before forcing any value.
 
 ```nix
 # Multi-round: A inserts data, B watches data
@@ -221,7 +227,7 @@ c = mkIntensional "other" {} (x: x);
 intensionalEq a c  # → false (different name)
 ```
 
-Intensional equality powers continuation dedup in `search.converge` — duplicate `mkIntensional` continuations watching the same index key fire only once.
+Continuation dedup in `search.converge` does **not** use `intensionalEq`: it dispatches on the identity regime and, on the non-minted arms, compares the reified value minus `__id`. Two continuations that `intensionalEq` calls equal — same name, differing closures and bodies — therefore both fire. A `mkIntensional` continuation registered twice still fires once.
 
 ### Record Algebra
 
@@ -528,7 +534,7 @@ nix-unit --flake ./ci#tests.rec-composition --override-input gen-algebra .
 
 | Paper | Relationship | Used for |
 |-------|-------------|----------|
-| Palmer et al. (2024) [*Intensional Functions*](https://dl.acm.org/doi/10.1145/3689714) | Implements structure / informed by | Search monad with name-keyed continuation dedup (§3); the three intensional eliminators `__functor`/`name`/`closure` (§2.2-2.3). Equality + dedup are **name-only** — a deliberate over-approximation of Palmer's name+closure conservative equality (§2.3 Fig 5), not the Theorem-1 result (gen's `closure` is programmer-declared, not compiler-extracted). |
+| Palmer et al. (2024) [*Intensional Functions*](https://dl.acm.org/doi/10.1145/3689714) | Implements structure / informed by | Search monad with continuation dedup (§3); the three intensional eliminators `__functor`/`name`/`closure` (§2.2-2.3). **Dedup is regime-dispatched** — exact where an identity is minted, a bucket compared by whole-value `==` otherwise — because Fig. 5 is a conjunction and a name-only key merged behaviourally distinct continuations. **`intensionalEq` is still name-only**, the remaining instance of that defect; its repair is the constructor migration and is not landed. Neither is the Theorem-1 result: that is a preservation theorem about 𝜆ITS reduction, and gen's `closure` is programmer-declared rather than compiler-extracted. |
 | Leijen (2005) [*Extensible Records with Scoped Labels*](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/scopedlabels.pdf) | Implements | Record algebra with extension/selection/restriction (§2), scoped labels via shadow stacks (§2.1-3.2), row compatibility checks (§3.1) |
 | Bracha & Cook (1990) [*Mixin-Based Inheritance*](https://www.bracha.org/oopsla90.pdf) | Implements | Left-biased combination (§2.1 ⊕ operator), Smalltalk-direction mixin (§2.1), Beta-direction mixin (§2.2), associative mixin composition ⋆ (§4) |
 
