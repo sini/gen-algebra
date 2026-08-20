@@ -42,70 +42,17 @@ let
     in
     if n >= len then [ ] else builtins.genList (i: builtins.elemAt list (i + n)) (len - n);
 
-  # The ONE access discipline over the three identity regimes, and it is TOTAL OVER
-  # THOSE THREE REGIMES — not over the two populations of the migration window, which
-  # is the narrower claim it replaced and which omits the sealed regime entirely.
-  # `__mint` is a TAGGED SUM, so no reader may branch on FIELD PRESENCE and then read
-  # `.minted` raw: on a value that has no mintable identity `v ? __mint` holds and
-  # `.minted` is absent, and that read aborts uncatchably rather than refusing.
-  #
-  #   minted     — an identity over a preimage total in the value's distinguishing
-  #                content, so the key it yields is EXACT.
-  #   unmintable — no identity and no substitute; the key it yields is a BUCKET label.
-  #   unmigrated — the migration window: no producer has stamped this value, so the
-  #                shipped program-point name is the bucket label.
-  identityOf =
-    v:
-    if v ? __mint && v.__mint ? minted then
-      { inherit (v.__mint) minted; }
-    else if v ? __mint then
-      { inherit (v.__mint) unmintable; }
-    else
-      { unmigrated = v.name; };
-
-  # ── the two SIBLINGS of that discipline, so nothing outside it reads the tag ──
-
-  # The one-character REGIME TAG an arm emits into the key space. Three arms writing
-  # into ONE untagged string space is a forgery channel, and the encoder's own rule
-  # closes it the same way: tag every node so forgery is INEXPRESSIBLE rather than
-  # unlikely. Without a tag a continuation merely NAMED string-equal to another's
-  # minted digest lands on that digest's key and one of the two is dropped; with the
-  # tag emitted before the payload an unmigrated arm can never render into the minted
-  # arm's space at all.
-  regimeTagOf =
-    i:
-    if i ? minted then
-      "m"
-    else if i ? unmintable then
-      "s"
-    else
-      "u";
-
-  # Whether an arm's key is EXACT — a dedup key — or a bucket label. Read off the same
-  # `identityOf` result rather than by re-testing `__mint`, so the tagged sum has one
-  # reader and not two.
-  isExact = i: i ? minted;
-
-  # The comparison SUBJECT for the non-exact arms: the reified value MINUS `__id`, and
-  # minus nothing else. `__id` is the ACCESSOR a consumer reads when it DEMANDS an
-  # identity, and where nothing is minted that accessor is the named refusal itself —
-  # so it is not distinguishing content, and forcing it inside a bucket scan would
-  # detonate the very decision the refusal exists to permit. `removeAttrs` preserves
-  # the evaluator's cell fast path and is a byte-for-byte no-op on a value carrying no
-  # `__id` (both measured), so this excludes the accessor without emptying the relation.
-  #
-  # ★ WHY EXCLUDING `__id` IS SUFFICIENT AND NOT ARBITRARY. It is the only OTHER
-  # refusal-valued accessor a compared value can carry, because `__mint.minted` is
-  # shielded by the tagged sum's own shape: the minted and sealed arms live under
-  # DIFFERENT KEY NAMES, and Nix `==` decides on the name set before forcing any value.
-  # Measured, with its control: a throwing payload under a differently-named key is
-  # never reached, while the SAME name on both sides DOES force — so the short-circuit
-  # is the name check, not throws being ignored. Two sealed values carry inert payloads
-  # under one name, so nothing forces there either. The one path that does force a mint
-  # is a minted-against-minted comparison, and that arm never reaches here: it compares
-  # digests, which is a genuine DEMAND for an identity, where a catchable named refusal
-  # is the correct outcome rather than a hazard.
-  comparisonSubject = v: removeAttrs v [ "__id" ];
+  # The identity-regime discipline and its three siblings come from `intensional.nix`, where the
+  # constructor that EMITS the tag lives. They are not restated here: one tagged sum with two
+  # readers is how the two stop agreeing, and the dedup loop below is a reader rather than an
+  # author of the regime. See that file for why each arm exists and why the sealed arm's comparison
+  # subject excludes `__id`.
+  inherit (import ./intensional.nix)
+    identityOf
+    regimeTagOf
+    isExact
+    comparisonSubject
+    ;
 
   # Private: dedup intensional continuations (Palmer §3).
   #

@@ -1,6 +1,43 @@
 { lib, genAlgebra, ... }:
 let
   inherit (genAlgebra) search mkIntensional;
+
+  # ── the injected mint ──
+  #
+  # A STAND-IN for the substrate's `hashIdentity`, which lives DOWNSTREAM of this library: importing
+  # it would close a flake dependency cycle, which is exactly why the constructor takes the minting
+  # authority as a PARAMETER. It renders where the real authority digests, so nothing here is
+  # evidence about the ENCODER — those arms live in gen-schema's identity-encoding suite. What it
+  # carries is that distinct coordinates reach the dedup loop as distinct keys.
+  mintStub =
+    kind: labels: valueOf:
+    "${kind}:"
+    + builtins.toJSON (
+      map (l: [
+        l
+        (valueOf l)
+      ]) labels
+    );
+
+  registry = {
+    revision = "r1";
+    members = {
+      counter = args: (v: s: search.emit [ "${args.tag}:${v}" ] s);
+    };
+  };
+  mk = mkIntensional mintStub registry;
+
+  # ── fixtures for the regimes the ENCODER CANNOT PRODUCE ──
+  #
+  # An encoder-built value is always MINTED — that is what the encoder is for — so the UNMIGRATED
+  # and UNMINTABLE arms are built as records of the same shape rather than by constructing a value
+  # and overriding its `__mint`. Overriding would assert about a value the constructor cannot emit,
+  # while reading as though it could. The unmigrated arm in particular is defined by the ABSENCE of
+  # the field, which no constructor call can produce.
+  intensionalLike = name: closure: fn: {
+    inherit name closure fn;
+    __functor = self: self.fn;
+  };
 in
 {
   flake.tests.search-converge.test-basic = {
@@ -72,7 +109,7 @@ in
   flake.tests.search-converge.test-intensional-dedup = {
     expr =
       let
-        counter = mkIntensional "my-counter" { } (v: s: search.emit [ "counted:${v}" ] s);
+        counter = mk "counter" { tag = "counted"; };
         s0 = search.insert "k" "v" search.empty;
         s1 = search.on "k" counter s0;
         s2 = search.on "k" counter s1;
@@ -80,6 +117,43 @@ in
       in
       final.results;
     expected = [ "counted:v" ];
+  };
+
+  # ★ THE ENCODER AND THE DEDUP LOOP, COMPOSED — the arm neither site can assert alone. Two
+  # continuations at ONE program point under differing substitutions behave differently, and the
+  # relation this loop used to run merged them, dropping one body and all. Encoder-built, they mint
+  # two identities, take the exact-key arm, and BOTH FIRE.
+  #
+  # The assertion is the OUTCOME the consumer produces and never the key: the sound loop and the
+  # defective one produce the SAME keys for a pair sharing a program point, so a cell asserting the
+  # key would pass on the defect.
+  flake.tests.search-converge.test-encoder-built-same-ctor-distinct-args-both-fire = {
+    expr =
+      let
+        s0 = search.insert "k" "v" search.empty;
+        s1 = search.on "k" (mk "counter" { tag = "A"; }) s0;
+        s2 = search.on "k" (mk "counter" { tag = "B"; }) s1;
+      in
+      (search.converge s2).results;
+    expected = [
+      "A:v"
+      "B:v"
+    ];
+  };
+
+  # CONTROL for the cell above, REGIME-MATCHED to it rather than borrowed from a neighbouring arm:
+  # two INDEPENDENTLY CONSTRUCTED values with the same coordinate mint ONE identity, so the loop
+  # must still merge them to a single firing. Without this the cell above passes for an accumulator
+  # that merged nothing at all.
+  flake.tests.search-converge.test-control-encoder-built-equal-coordinates-fire-once = {
+    expr =
+      let
+        s0 = search.insert "k" "v" search.empty;
+        s1 = search.on "k" (mk "counter" { tag = "same"; }) s0;
+        s2 = search.on "k" (mk "counter" { tag = "same"; }) s1;
+      in
+      (search.converge s2).results;
+    expected = [ "same:v" ];
   };
 
   flake.tests.search-converge.test-empty = {
@@ -145,7 +219,7 @@ in
   flake.tests.search-converge.test-same-name-distinct-bodies-both-fire = {
     expr =
       let
-        cont = tag: mkIntensional "shared-point" { inherit tag; } (v: s: search.emit [ "${tag}:${v}" ] s);
+        cont = tag: intensionalLike "shared-point" { inherit tag; } (v: s: search.emit [ "${tag}:${v}" ] s);
         s0 = search.insert "k" "v" search.empty;
         s1 = search.on "k" (cont "A") s0;
         s2 = search.on "k" (cont "B") s1;
@@ -164,7 +238,7 @@ in
   flake.tests.search-converge.test-one-value-registered-twice-fires-once = {
     expr =
       let
-        cont = mkIntensional "shared-point" { } (v: s: search.emit [ "once:${v}" ] s);
+        cont = intensionalLike "shared-point" { } (v: s: search.emit [ "once:${v}" ] s);
         s0 = search.insert "k" "v" search.empty;
         s1 = search.on "k" cont s0;
         s2 = search.on "k" cont s1;
@@ -180,7 +254,7 @@ in
       let
         cont =
           digest: tag:
-          (mkIntensional "shared-point" { } (v: s: search.emit [ "${tag}:${v}" ] s))
+          (intensionalLike "shared-point" { } (v: s: search.emit [ "${tag}:${v}" ] s))
           // {
             __mint.minted = digest;
           };
@@ -202,7 +276,7 @@ in
       let
         cont =
           tag:
-          (mkIntensional "shared-point" { } (v: s: search.emit [ "${tag}:${v}" ] s))
+          (intensionalLike "shared-point" { } (v: s: search.emit [ "${tag}:${v}" ] s))
           // {
             __mint.minted = "its:cccc";
           };
@@ -224,10 +298,10 @@ in
     expr =
       let
         forgedName = "its:aaaa";
-        mintedCont = (mkIntensional "counter" { } (v: s: search.emit [ "M:${v}" ] s)) // {
+        mintedCont = (intensionalLike "counter" { } (v: s: search.emit [ "M:${v}" ] s)) // {
           __mint.minted = forgedName;
         };
-        unmigratedCont = mkIntensional forgedName { } (v: s: search.emit [ "U:${v}" ] s);
+        unmigratedCont = intensionalLike forgedName { } (v: s: search.emit [ "U:${v}" ] s);
         run =
           first: second:
           let
@@ -259,7 +333,7 @@ in
       let
         cont =
           tag:
-          (mkIntensional "shared-point" { inherit tag; } (v: s: search.emit [ "${tag}:${v}" ] s))
+          (intensionalLike "shared-point" { inherit tag; } (v: s: search.emit [ "${tag}:${v}" ] s))
           // {
             __mint.unmintable = {
               reason = "distinguishing content is a caller-supplied lambda";
@@ -285,7 +359,7 @@ in
   flake.tests.search-converge.test-unmintable-one-value-registered-twice-fires-once = {
     expr =
       let
-        cont = (mkIntensional "shared-point" { } (v: s: search.emit [ "once:${v}" ] s)) // {
+        cont = (intensionalLike "shared-point" { } (v: s: search.emit [ "once:${v}" ] s)) // {
           __mint.unmintable = {
             reason = "distinguishing content is a caller-supplied lambda";
             ctor = "shared-point";
@@ -308,7 +382,7 @@ in
       let
         cont =
           tag:
-          (mkIntensional "shared-point" { inherit tag; } (v: s: search.emit [ "${tag}:${v}" ] s))
+          (intensionalLike "shared-point" { inherit tag; } (v: s: search.emit [ "${tag}:${v}" ] s))
           // {
             __mint.unmintable = {
               reason = "distinguishing content is a caller-supplied lambda";

@@ -26,7 +26,7 @@ The module-system tier (identity/strict/validators/cross-registry refs for `lib.
 ### Extraction Lineage
 
 ```
-flake-aspects ──→ gen-algebra.search, gen-algebra.mkIntensional, gen-algebra.intensionalEq
+flake-aspects ──→ gen-algebra.search, gen-algebra.mkIntensional, gen-algebra.conservativeEq
                     ↓
               gen-schema (typed registries on gen-algebra primitives;
                           owns the module-system tier — identity/strict/validators/refs)
@@ -72,7 +72,7 @@ gen-algebra has zero flake inputs — this lineage shows where each primitive wa
       search = gen.lib.search;
       inherit (gen.lib)
         mkIntensional
-        intensionalEq
+        conservativeEq
         record
         either
         ;
@@ -97,7 +97,7 @@ in
 
 ## API Reference
 
-Every exported name is documented below, grouped by primitive family. The full surface is `search` (8), `record` (26), `either` (6), plus top-level `mkIntensional` and `intensionalEq` — verified against `nix eval .#lib`.
+Every exported name is documented below, grouped by primitive family. The full surface is `search` (8), `record` (26), `either` (6), plus top-level `mkIntensional`, `conservativeEq` and the four identity-regime readers (`identityOf`, `regimeTagOf`, `isExact`, `comparisonSubject`) — verified against `nix eval .#lib`.
 
 ### Search Monad
 
@@ -201,33 +201,80 @@ s2 = search.on "data" (v: s: search.emit [ "B-saw:${v}" ] s) s1;
 
 ### Intensional Functions
 
-Palmer §2.2-2.3: function wrappers with program-point identity. gen implements the *structure* of Palmer's intensional functions (the three eliminators below); equality is **name-only** — a deliberate over-approximation, see [`intensionalEq`](#intensionaleq).
+Palmer §2.2-2.3: function wrappers with program-point identity, built by an **encoder** rather than
+assembled by the caller. Palmer discharges his closure-consistency requirements *by construction at an
+encoder* and never by a check, and this constructor is that transposed: the author names a
+**constructor** and an **inert argument value**, and a registry supplies the body.
 
 #### `mkIntensional`
 
-Create a callable attrset with a `name` for identity comparison and inspectable `closure`.
-
 ```nix
-fn = mkIntensional "add1" {} (x: x + 1);
-fn 5          # → 6 (callable via __functor)
-fn.name       # → "add1" (program point identity)
-fn.closure    # → {} (inspectable metadata)
+mkIntensional : hashIdentity -> registry -> ctor -> args -> intensional
 ```
 
-#### `intensionalEq`
-
-**Name-only** equality by program point — two functions with the same `name` are equal regardless of closure. This is a deliberate *over-approximation*: it is a **superset** of Palmer's conservative equality (§2.3 Fig 5, which also requires equal closures), declaring *more* pairs equal, not fewer. It is sound under the discipline that callers fold any distinguishing data into the `name` (e.g. `"myPolicy:${hostName}"`). Note `closure` here is *programmer-declared* inspect data, not the compiler-extracted environment Palmer's Theorem 1 assumes — so the theorem's soundness does not transfer; gen relies on the naming discipline instead.
+`registry` is `{ revision; members; }`, where `members` maps a constructor name to a builder over the
+inert argument value. `revision` is **required and total** — a registry without one is refused by name
+at construction, never defaulted.
 
 ```nix
-a = mkIntensional "same" {} (x: x);
-b = mkIntensional "same" { different = true; } (y: y);
-intensionalEq a b  # → true (same name)
+registry = {
+  revision = "r1";
+  members.addN = args: (x: x + args.n);
+};
+mk = mkIntensional genSchema.hashIdentity registry;
 
-c = mkIntensional "other" {} (x: x);
-intensionalEq a c  # → false (different name)
+fn = mk "addN" { n = 1; };
+fn 5           # → 6 (callable via __functor)
+fn.name        # → "addN" (the program point, DERIVED from the constructor)
+fn.closure     # → { n = 1; } (the reified argument value — it IS `args`)
+fn.__mint      # → { minted = "its:…"; } (lazy: an unread identity hashes nothing)
 ```
 
-Continuation dedup in `search.converge` does **not** use `intensionalEq`: it dispatches on the identity regime and, on the non-minted arms, compares the reified value minus `__id`. Two continuations that `intensionalEq` calls equal — same name, differing closures and bodies — therefore both fire. A `mkIntensional` continuation registered twice still fires once.
+**The mint is injected.** `hashIdentity` is the substrate's one minting authority and it lives
+downstream of gen-algebra, so importing it would close a flake dependency cycle. Taking it as a
+constructor parameter mints the value inside the consumer's own eval — the identity is owned rather
+than borrowed, and gen-algebra keeps its zero-dependency property.
+
+**There is no closure argument to under-supply.** The shipped constructor took the `name` and the
+`closure` from the caller, so an under-complete closure was undetectable and two bodies could share
+one program point. Here both are derived: `name = ctor`, `closure = args`.
+
+**The identity coordinate is `(registry, ctor, args)`.** The registry term is not decoration — Nix has
+no linking, so a builder's free variables include its registry module instance's whole lexical scope.
+Without it, two pins of the substrate give the same `ctor` and the same `args` one identity for two
+behaviours.
+
+#### `conservativeEq`
+
+Palmer's own term (§2.3, §5.3, §8) — *"intensional"* qualifies the **function**, never the equality.
+Fig. 5 is a **conjunction** over identity AND closure, and the relation this replaces shipped the
+first conjunct alone, which **coarsens**: it called behaviourally distinct functions equal, the one
+direction §2.3's guarantee forbids.
+
+```nix
+a = mk "addN" { n = 1; };
+b = mk "addN" { n = 2; };
+conservativeEq a b   # → false — one program point, two substitutions, two behaviours
+a 5                  # → 6
+b 5                  # → 7
+
+c = mk "addN" { n = 1; };
+conservativeEq a c   # → true — independently constructed, one coordinate, one identity
+```
+
+The relation dispatches on the identity **regime** rather than reading one field. Where both sides
+carry a minted identity the digests decide; where nothing is minted it compares the **reified value**
+minus `__id`, never a list of components — an attribute selection is an indirection, so a
+component-wise form is false even against itself and the relation would be *empty* rather than finer.
+That form's precision is an allocation artefact and is declared as such: it merges strictly less than
+Fig. 5 and never more.
+
+`__id` is excluded because it is the **accessor** a consumer reads when it *demands* an identity, and
+where nothing is minted that accessor is the named refusal itself.
+
+Continuation dedup in `search.converge` shares this discipline rather than calling `conservativeEq`:
+it keys exactly where an identity is minted and buckets otherwise, with every key carrying a regime
+tag so the three arms occupy disjoint key spaces.
 
 ### Record Algebra
 
@@ -508,7 +555,7 @@ gen-algebra/
   lib/
     default.nix            — exports search + intensional + either + record
     search.nix             — Palmer §3 Search monad (8 public primitives)
-    intensional.nix        — mkIntensional, intensionalEq
+    intensional.nix        — mkIntensional, conservativeEq, the identity-regime discipline
     either.nix             — Either combinators (right, left, pipe, collectErrors, mapR, chain)
     rec.nix                — Leijen §2 record algebra with scoped labels + Bracha §2-4 mixin composition + foldLayers
   ci/                      — nix-unit test suite (incl. the purity invariant)
@@ -520,7 +567,7 @@ gen-algebra is fully pure — zero dependencies of any kind, not even nixpkgs `l
 
 ## Testing
 
-Tests live in `ci/` and run under nix-unit (via `gen.lib.mkCi`). 127 test cases across 12 suites (`either`, `intensional`, `purity`, `rec-primitives`, `rec-derived`, `rec-row`, `rec-composition`, `rec-fold-layers`, `rec-fold-layers-traced`, `rec-nested-layers`, `search-primitives`, `search-converge`), including the purity invariant that fails on any stray `lib.types` / `mkOption` / `evalModules` in the library source. Requires nix-unit.
+Tests live in `ci/` and run under nix-unit (via `gen.lib.mkCi`). 154 test cases across 12 suites (`either`, `intensional`, `purity`, `rec-primitives`, `rec-derived`, `rec-row`, `rec-composition`, `rec-fold-layers`, `rec-fold-layers-traced`, `rec-nested-layers`, `search-primitives`, `search-converge`), including the purity invariant that fails on any stray `lib.types` / `mkOption` / `evalModules` in the library source. Requires nix-unit.
 
 ```bash
 # all suites
@@ -534,7 +581,7 @@ nix-unit --flake ./ci#tests.rec-composition --override-input gen-algebra .
 
 | Paper | Relationship | Used for |
 |-------|-------------|----------|
-| Palmer et al. (2024) [*Intensional Functions*](https://dl.acm.org/doi/10.1145/3689714) | Implements structure / informed by | Search monad with continuation dedup (§3); the three intensional eliminators `__functor`/`name`/`closure` (§2.2-2.3). **Dedup is regime-dispatched** — exact where an identity is minted, a bucket compared by whole-value `==` otherwise — because Fig. 5 is a conjunction and a name-only key merged behaviourally distinct continuations. **`intensionalEq` is still name-only**, the remaining instance of that defect; its repair is the constructor migration and is not landed. Neither is the Theorem-1 result: that is a preservation theorem about 𝜆ITS reduction, and gen's `closure` is programmer-declared rather than compiler-extracted. |
+| Palmer et al. (2024) [*Intensional Functions*](https://dl.acm.org/doi/10.1145/3689714) | Informed by | Search monad with continuation dedup (§3); the three intensional eliminators `__functor`/`name`/`closure` (§2.2-2.3). The constructor is an **encoder** (§5's Def 5.5–5.7 discharged by construction, as Palmer discharges them, rather than by a check), and both dedup and `conservativeEq` are **regime-dispatched** — exact where an identity is minted, a bucket or whole-value `==` otherwise — because Fig. 5 is a **conjunction** and the name-only relation gen used to ship merged behaviourally distinct functions. **The closure-consistency hypotheses discharge CONDITIONALLY**, on the registry `revision` a declaration can get wrong; the condition disappears only when builders become first-order terms. **Theorem 1 does not transfer** at all: it is a preservation theorem about 𝜆ITS reduction and gen is not 𝜆ITS. |
 | Leijen (2005) [*Extensible Records with Scoped Labels*](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/scopedlabels.pdf) | Implements | Record algebra with extension/selection/restriction (§2), scoped labels via shadow stacks (§2.1-3.2), row compatibility checks (§3.1) |
 | Bracha & Cook (1990) [*Mixin-Based Inheritance*](https://www.bracha.org/oopsla90.pdf) | Implements | Left-biased combination (§2.1 ⊕ operator), Smalltalk-direction mixin (§2.1), Beta-direction mixin (§2.2), associative mixin composition ⋆ (§4) |
 
