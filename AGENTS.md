@@ -2,7 +2,7 @@
 
 ## Scope
 
-Pure-algebra root of the gen ecosystem: a Palmer §3 search monad, Leijen/Bracha record algebra with scoped labels and layer folding, Either combinators, intensional-function constructors, and standalone identity hashing — `builtins` only, zero flake inputs.
+Pure-algebra root of the gen ecosystem: a Palmer §3 search monad, Leijen/Bracha record algebra with scoped labels and layer folding, Either combinators, and intensional-function constructors — `builtins` only, zero flake inputs. It mints no identity itself: `mkIntensional` takes the mint INJECTED, because the one minting authority (ADR-0016 ruling 5) is `gen-identity`, a dependency-free leaf downstream of nothing this library could import without a cycle.
 
 ## Not this library's job
 
