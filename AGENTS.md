@@ -26,7 +26,7 @@ Quoted text is the owner's own `flake.nix` `description` field, verbatim.
 | Change propagation, AFFECTED sets, incremental rebuild | `gen-memo` — "gen-memo — the incremental plane: a decision layer over the evaluator that never evaluates, only decides reuse" |
 | The nixpkgs boundary — building anything, injecting resolved values | `gen-flake` — "gen-flake — the pure composition boundary of the pure-gen module ecosystem" |
 
-Declared flake inputs on gen-algebra across the sibling set: `gen-link`, `gen-resolve`, `gen-schema`, `gen-settings`.
+Declared flake inputs on gen-algebra across the sibling set: `gen-link`, `gen-schema`, `gen-select`, `gen-settings`.
 
 ## Exports
 
