@@ -167,6 +167,8 @@ either side could reach on its own.
 
 ## Measured traps
 
+<!-- gen-citations:begin -->
+
 Each row verified in this run by evaluating against `a = import ./lib` from the repo root (`r = a.record`, `s = a.search`, `e = a.either`; `base = r.fromAttrs { level = "info"; }`, `env = r.extend base "level" "warn"`). Errors marked *(stderr)* were captured from the evaluator's message because `builtins.tryEval` does not catch that error class.
 
 | Trap | Evidence |
@@ -179,7 +181,7 @@ Each row verified in this run by evaluating against `a = import ./lib` from the 
 | The layer-folding family takes **plain attrsets**; a `record` passed as a layer leaks its internals as ordinary fields | `lib/rec.nix:179-214` (no `__entries` handling); `builtins.attrNames (foldLayers { layers = [ (r.fromAttrs { a = 1; }) ]; })` ⇒ `["__entries","__order"]` |
 | `mkIntensional` is a FOUR-argument encoder and the first two are injected: the mint, then the registry. A three-argument call throws by name | `lib/intensional.nix`, binding `mkIntensional`; `mkIntensional h { revision = "r1"; members.addN = a: (x: x + a.n); } "addN" { n = 1; }`. An undeclared `ctor` ⇒ `intensional: unknown constructor '<ctor>'`; a registry with no `revision` ⇒ `intensional: registry declares no revision`. Tests: `test-refuses-unknown-constructor`, `test-refuses-registry-without-revision` |
 | `conservativeEq` SEPARATES two values sharing a `ctor` and differing in `args` — the pair the retired name-only relation merged | `lib/intensional.nix`, binding `conservativeEq`; `a = mk "addN" { n = 1; }`, `b = mk "addN" { n = 2; }` ⇒ `conservativeEq a b` `false` while `a.name == b.name` is still `true` and `a 5` ⇒ `6`, `b 5` ⇒ `7`. Tests: `test-conservativeEq-separates-differing-args`, `test-control-equal-coordinates-merge` (`ci/tests/intensional.nix`) |
-| `conservativeEq` is unguarded — a bare lambda throws rather than returning `false` | `lib/intensional.nix`, binding `conservativeEq`; `conservativeEq (x: x) (y: y)` ⇒ `error: expected a set but found a function` *(stderr)*. gen-select guards its own relation with an `isIntensional` check first (`gen-select/lib/constructors.nix`, binding `selectorEq`, cross-repo) |
+| `conservativeEq` is unguarded — a bare lambda throws rather than returning `false` | `lib/intensional.nix`, binding `conservativeEq`; `conservativeEq (x: x) (y: y)` ⇒ `error: expected a set but found a function` *(stderr)*. gen-select guards its own relation with an `isIntensional` check first (gen-select/lib/constructors.nix, binding `selectorEq`, cross-repo) |
 | `converge` dedups intensional continuations by **identity regime**, not by name. Same-key continuations sharing one program point but **behaving differently now BOTH FIRE** — the key is a bucket and membership is decided by Nix `==` on the reified value minus `__id` | `lib/intensional.nix`, bindings `identityOf` / `comparisonSubject`, consumed by `lib/search.nix`'s `classify` / `dedupContinuations`; two continuations named `"g"` on key `"k"` with different bodies ⇒ **both fire**. RED control, the retired presence loop on the same pair ⇒ **one fires** — the later registration was dropped body and all, silently. Test: `test-intensional-dedup` (`ci/tests/search-converge.nix`) covers the merging arm (one value bound twice ⇒ one survivor) |
 | Dedup precision on the non-minted arms is an **allocation artefact**, and merging is what it may lose | `lib/search.nix`, binding `dedupContinuations`; one value registered twice ⇒ **one** survivor, two separately-constructed equal-shaped values ⇒ **two**. `search.converge` merges WORK, so a finer relation costs dedup and never correctness |
 | Bare lambdas are never deduped: `classify` demands `? name && ? closure`, and `?` on a lambda is `false` | `lib/search.nix`, binding `classify` (which replaced the former `keyOf` and now returns `{ key; exact; }`); `(x: x) ? name` ⇒ `false`; two bare continuations on one key ⇒ `["bare2:v","bare1:v"]` (both fired). Test: `test-non-intensional-duplicates-fire-independently` |
@@ -201,6 +203,8 @@ Each row verified in this run by evaluating against `a = import ./lib` from the 
 | `flattenAttrs` treats `{}` as a leaf, so an empty attrset survives as a value rather than vanishing | `lib/rec.nix`, `flattenAttrs`'s `go` (the `v != { }` guard on its descend branch); `flattenAttrs {} { a = {}; b = { c = 1; }; }` ⇒ `{"a":{},"b.c":1}`. Test: `test-flatten-empty` |
 | `unflattenAttrs` splits on every literal `.`, so `foldNestedLayers` silently re-nests a key that already contained one | `lib/rec.nix`, `unflattenAttrs`'s `parts` (`builtins.split "\\."`); `foldNestedLayers { layers = [ { "a.b" = 1; } ]; }` ⇒ `{"a":{"b":1}}` |
 | `mkIntensional` is CURRIED four deep, so a partial application is a value worth binding; `flattenAttrs` takes its config and target as two arguments while the fold family takes one attrset | `lib/intensional.nix`, binding `mkIntensional`, `lib/rec.nix`'s `flattenAttrs` signature (`{ strategies, prefix }: attrs:`, two arguments); `(mk "mulN" { n = 2; }).closure` ⇒ `{"n":2}`; `flattenAttrs { prefix = "p"; } { a = 1; }` ⇒ `{"p.a":1}`. Tests: `test-closure-is-the-argument-value`, `test-flatten-with-prefix` |
+
+<!-- gen-citations:end -->
 
 ## Theory
 
