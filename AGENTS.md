@@ -1,5 +1,7 @@
 # gen-algebra — agent capability sheet
 
+> **Library class: reference-grade.** Deletion requires a domain argument — wrong abstraction, subsumption by another construct, or theory-unsoundness; a usage count is inadmissible as a deletion ground (P7, 2026-08-17).
+
 ## Scope
 
 Pure-algebra root of the gen ecosystem: a Palmer §3 search monad, Leijen/Bracha record algebra with scoped labels and layer folding, Either combinators, and intensional-function constructors — `builtins` only, zero flake inputs. It mints no identity itself: `mkIntensional` takes the mint INJECTED, because the one minting authority (ADR-0016 ruling 5) is `gen-identity`, a dependency-free leaf downstream of nothing this library could import without a cycle.
