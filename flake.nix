@@ -12,7 +12,9 @@
   # real `gen-identity` mint for exactly that reason. Owner-ruled 2026-08-20 (den-hoag-soa1),
   # verbatim: "ci/ has its own flake."
   #
-  # The entry is a bare value.
+  # `./lib` is a bare value; the standalone root entry (`default.nix`) is a nullary function
+  # over it, `import ./. { }` (den-hoag-iev2q) — this flake's own `lib` output resolves `./lib`
+  # directly and does not go through the root, so it is unaffected by that shape.
   outputs =
     { ... }:
     {

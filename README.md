@@ -83,9 +83,9 @@ gen-algebra has zero flake inputs — this lineage shows where each primitive wa
 
 ```nix
 let
-  # Fully pure — no nixpkgs / lib needed. The non-flake entry (default.nix = import ./lib)
-  # is the lib value itself, not a function — so no argument is applied.
-  gen = import ./path/to/gen-algebra;
+  # Fully pure — no nixpkgs / lib needed. The non-flake entry is a nullary function
+  # (default.nix = { }: import ./lib, den-hoag-iev2q) — `{ }` applies it to the lib value.
+  gen = import ./path/to/gen-algebra { };
 in
 {
   inherit (gen) search record either mkIntensional;
@@ -566,7 +566,7 @@ nix eval --override-input gen-algebra ../.. .#eitherDemo
 
 ```
 gen-algebra/
-  default.nix              — non-flake entry (bare lib value: import ./lib, no argument)
+  default.nix              — non-flake entry (nullary function over the lib value: import ./default.nix { })
   flake.nix                — flake output (single `lib` value, no __functor)
   lib/
     default.nix            — exports search + intensional + either + record

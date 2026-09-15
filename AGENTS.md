@@ -32,7 +32,7 @@ Declared flake inputs on gen-algebra across the sibling set: `gen-link`, `gen-sc
 
 ## Exports
 
-Entry: `inputs.gen-algebra.lib` (flake, `flake.nix:9`). Root `default.nix` is `import ./lib` (`default.nix:4`) — the same bare value, not a function, so it takes no dependency argument.
+Entry: `inputs.gen-algebra.lib` (flake, `flake.nix:9`). Root `default.nix` is a nullary function over `import ./lib` (`default.nix:8`, den-hoag-iev2q) — `import ./. { }`, still no dependency argument, just an empty one.
 
 Six top-level names: three namespaces (`search`, `record`, `either`) and three bare functions.
 
