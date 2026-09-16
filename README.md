@@ -62,13 +62,13 @@ gen-algebra has zero flake inputs — this lineage shows where each primitive wa
 
 ```nix
 {
-  inputs.gen.url = "github:sini/gen-algebra";
+  inputs.gen-algebra.url = "github:sini/gen-algebra";
 
-  outputs = { gen, ... }:
+  outputs = { gen-algebra, ... }:
     let
       # Fully pure — no lib needed. Everything is under the `lib` output.
-      search = gen.lib.search;
-      inherit (gen.lib)
+      search = gen-algebra.lib.search;
+      inherit (gen-algebra.lib)
         mkIntensional
         conservativeEq
         record
@@ -583,7 +583,7 @@ gen-algebra is fully pure — zero dependencies of any kind, not even nixpkgs `l
 
 ## Testing
 
-Tests live in `ci/` and run under nix-unit (via `gen.lib.mkCi`). 161 test cases across 12 suites (`nix-unit --flake ./ci#tests` ⇒ `161/161 successful`, `ee19090`) (`either`, `intensional`, `purity`, `rec-primitives`, `rec-derived`, `rec-row`, `rec-composition`, `rec-fold-layers`, `rec-fold-layers-traced`, `rec-nested-layers`, `search-primitives`, `search-converge`), including the purity invariant that fails on any stray `lib.types` / `mkOption` / `evalModules` in the library source. Requires nix-unit.
+Tests live in `ci/` and run under nix-unit (via `gen-harness.lib.mkCi`). 161 test cases across 12 suites (`nix-unit --flake ./ci#tests` ⇒ `161/161 successful`, `ee19090`) (`either`, `intensional`, `purity`, `rec-primitives`, `rec-derived`, `rec-row`, `rec-composition`, `rec-fold-layers`, `rec-fold-layers-traced`, `rec-nested-layers`, `search-primitives`, `search-converge`), including the purity invariant that fails on any stray `lib.types` / `mkOption` / `evalModules` in the library source. Requires nix-unit.
 
 ```bash
 # all suites
