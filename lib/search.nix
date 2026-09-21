@@ -70,12 +70,12 @@ let
   #               O(1) behaviour on it.
   #   otherwise — the key is a bucket label, and membership is decided by comparing THE
   #               REIFIED VALUE ITSELF — minus `comparisonSubject`'s one exclusion —
-  #               against the bucket's members. It must be the whole value: an attribute
-  #               selection is an indirection, so a component-wise form is false even
-  #               against itself and the relation would be EMPTY rather than finer. Its
-  #               precision is an allocation artefact, which for a relation that merges
-  #               WORK is the safe direction — a finer relation costs dedup and never
-  #               correctness.
+  #               against the bucket's members. It must be the whole value because
+  #               ADR-0034's component-list clause names a constructor's declared
+  #               components as what the comparison's SUBJECT is, and never a set of
+  #               components to be compared one by one. Its precision is an allocation
+  #               artefact, which for a relation that merges WORK is the safe direction —
+  #               a finer relation costs dedup and never correctness.
   #
   # Every key carries its REGIME TAG between the index key and the payload, so the three
   # arms occupy disjoint key spaces and a name cannot forge a digest's key.

@@ -225,14 +225,24 @@ let
   # one half of it and COARSENS — it calls behaviourally distinct functions equal, which is the one
   # direction §2.3's guarantee forbids.
   #
-  # Minted values compare by digest, which is exact. Where nothing is minted this compares THE
-  # REIFIED VALUE — minus `comparisonSubject`'s one exclusion — and never a list of components: a
-  # bare `==` on a lambda is false always, and the evaluator's cell fast path appears only when the
-  # lambdas are compared INSIDE a container the comparison reaches by the same reference. An
-  # attribute selection is an indirection, so a component-wise form is false even against itself and
-  # the relation would be EMPTY rather than finer. Its precision is an allocation artefact and is
-  # declared as such: two separately-constructed equal-shaped values compare unequal, so the
-  # relation merges strictly less than Fig. 5 and never more.
+  # THREE ARMS, and no merge direction holds over all three. Minted values compare by digest, which
+  # is exact and fuses both of Fig. 5's conjuncts into one comparison. The FALL-THROUGH compares THE
+  # REIFIED VALUE — minus `comparisonSubject`'s one exclusion — and never a list of components; its
+  # precision there is an allocation artefact, so two separately-constructed equal-shaped values
+  # compare unequal and that arm merges strictly LESS than Fig. 5.
+  #
+  # The UNMIGRATED arm is neither: it decides on `name` alone, so it merges strictly MORE — two
+  # values at one program point with differing closures compare EQUAL here while Fig. 5 separates
+  # them. That is the coarsening the paragraph above names, still shipped, and it is why a direction
+  # is stated per arm and never over "the relation".
+  #
+  # A component-wise conjunct is not the remedy: ADR-0034's component-list clause rules that a
+  # constructor's declared components name what the comparison's SUBJECT must be, and never a set of
+  # components to be compared one by one. The foreclosure rests on that clause ALONE — not on any
+  # claim that a component-wise form cannot work. Nix `==` short-circuits on pointer identity, so an
+  # attribute selection compares TRUE against itself even when the selected value holds a lambda,
+  # and the component-wise form would be FINER rather than empty; only separately allocated lambdas
+  # compare false.
   conservativeEq =
     a: b:
     let

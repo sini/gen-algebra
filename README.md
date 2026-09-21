@@ -278,12 +278,22 @@ c = mk "addN" { n = 1; };
 conservativeEq a c   # → true — independently constructed, one coordinate, one identity
 ```
 
-The relation dispatches on the identity **regime** rather than reading one field. Where both sides
-carry a minted identity the digests decide; where nothing is minted it compares the **reified value**
-minus `__id`, never a list of components — an attribute selection is an indirection, so a
-component-wise form is false even against itself and the relation would be *empty* rather than finer.
-That form's precision is an allocation artefact and is declared as such: it merges strictly less than
-Fig. 5 and never more.
+The relation dispatches on the identity **regime** rather than reading one field, and it has **three
+arms whose merge directions differ** — no one direction holds over "the relation". Where both sides
+carry a minted identity the digests decide, which is exact and fuses both of Fig. 5's conjuncts. The
+**fall-through** compares the **reified value** minus `__id`, never a list of components; its
+precision there is an allocation artefact, so two separately-constructed equal-shaped values compare
+unequal and that arm merges strictly **less** than Fig. 5. The **unmigrated** arm is neither: it
+decides on `name` alone, so it merges strictly **more** — two values at one program point with
+differing closures compare equal there while Fig. 5 separates them.
+
+A component-wise conjunct is not the remedy. ADR-0034's component-list clause rules that a
+constructor's declared components name what the comparison's **subject** must be, and never a set of
+components to be compared one by one; the foreclosure rests on that clause alone, not on any claim
+that a component-wise form cannot work. Nix `==` short-circuits on pointer identity, so an attribute
+selection compares true against itself even when the selected value holds a lambda, and the
+component-wise form would be *finer* rather than empty — only separately allocated lambdas compare
+false.
 
 `__id` is excluded because it is the **accessor** a consumer reads when it *demands* an identity, and
 where nothing is minted that accessor is the named refusal itself.
@@ -603,4 +613,4 @@ nix-unit --flake ./ci#tests.rec-composition --override-input gen-algebra .
 | Leijen (2005) [*Extensible Records with Scoped Labels*](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/scopedlabels.pdf) | Implements   | Record algebra with extension/selection/restriction (§2), scoped labels via shadow stacks (§2.1-3.2), row compatibility checks (§3.1)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Bracha & Cook (1990) [*Mixin-Based Inheritance*](https://www.bracha.org/oopsla90.pdf)                                                         | Implements   | Left-biased combination (§2.1 ⊕ operator), Smalltalk-direction mixin (§2.1), Beta-direction mixin (§2.2), associative mixin composition ⋆ (§4)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
-**Implements** means the code directly realizes the paper's constructs (`lib/search.nix` + `lib/intensional.nix` for Palmer's search monad and intensional *structure* and for Lorenzen's lazy constructor; `lib/rec.nix` for Leijen and Bracha). One caveat on the Palmer row: `conservativeEq` dispatches on the identity regime and merges strictly less than Fig. 5 rather than realizing it, the closure-consistency hypotheses discharge only *conditionally* — on a registry `revision` an author can get wrong — and Theorem 1 does not transfer at all. See [Intensional Functions](#intensional-functions).
+**Implements** means the code directly realizes the paper's constructs (`lib/search.nix` + `lib/intensional.nix` for Palmer's search monad and intensional *structure* and for Lorenzen's lazy constructor; `lib/rec.nix` for Leijen and Bracha). One caveat on the Palmer row: `conservativeEq` dispatches on the identity regime rather than realizing Fig. 5 — its minted arm fuses both conjuncts, its fall-through merges strictly less, and its unmigrated arm merges strictly *more* — the closure-consistency hypotheses discharge only *conditionally* — on a registry `revision` an author can get wrong — and Theorem 1 does not transfer at all. See [Intensional Functions](#intensional-functions).
