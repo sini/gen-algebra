@@ -287,9 +287,9 @@ unequal and that arm merges strictly **less** than Fig. 5. The **unmigrated** ar
 decides on `name` alone, so it merges strictly **more** — two values at one program point with
 differing closures compare equal there while Fig. 5 separates them.
 
-A component-wise conjunct is not the remedy. ADR-0034's component-list clause rules that a
+A component-wise conjunct is not the remedy. This design's component-list rule holds that a
 constructor's declared components name what the comparison's **subject** must be, and never a set of
-components to be compared one by one; the foreclosure rests on that clause alone, not on any claim
+components to be compared one by one; the foreclosure rests on that rule alone, not on any claim
 that a component-wise form cannot work. Nix `==` short-circuits on pointer identity, so an attribute
 selection compares true against itself even when the selected value holds a lambda, and the
 component-wise form would be *finer* rather than empty — only separately allocated lambdas compare
