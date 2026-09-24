@@ -498,10 +498,47 @@ consumer-side `map` over the finished provenance cannot give you. Omitting
 #### Nested-layer variants
 
 `flattenAttrs`, `unflattenAttrs`, and `foldNestedLayers` extend layer folding to
-nested attrsets. `foldNestedLayers` is `foldLayers` for nested structures
+nested attrsets. They are published here as `record.*` and re-exported unchanged by
+the gen hub as `gen.lib.substrate.algebra.record.*`, so the key language below is
+the same on both surfaces. `foldNestedLayers` is `foldLayers` for nested structures
 (flatten → `foldLayers` → unflatten); `flattenAttrs`/`unflattenAttrs` are its
-dot-separated-key flatten/rebuild primitives (`flattenAttrs` halts recursion at
-fields whose strategy is `"recursive"`).
+flatten/rebuild primitives (`flattenAttrs` halts recursion at fields whose
+strategy is `"recursive"`).
+
+**Keys are escaped attribute paths.** A flat key encodes the path `[s₁ … sₙ]` by
+escaping each segment as RFC 6901 (JSON Pointer) §3 does — `~` becomes `~0`, then
+`.` becomes `~1` — and joining the segments with `.` where RFC 6901 uses `/`. An
+escaped segment contains no `.`, so distinct paths get distinct keys: a literal
+key `"a.b"` and the nested path `a.b` stay two leaves, and an empty segment is
+data rather than the root. On segments containing no `.`, `~` or empty name the
+key is the plain dot join.
+
+```nix
+record.flattenAttrs { } { "a.b" = 1; a.b = 2; }
+# → { "a~1b" = 1; "a.b" = 2; }
+```
+
+`unflattenAttrs` decodes each segment in one left-to-right pass (`~1` → `.`,
+`~0` → `~`, the RFC 6901 §4 order) and **throws, naming the key and segment**, on a
+segment that is not an escape — a `~` not followed by `0` or `1`, e.g.
+`{ "a~2b" = 1; }`. Decoding it leniently would let `{ "~" = 1; "~0" = 2; }` land
+on one path and drop a value.
+
+`strategies` keys (and `prefix`, an already-encoded key, `""` being the root) use
+the same encoding. A strategy for a path whose segment contains `.` is written
+escaped: `strategies."a~1b.c"` names `[ "a.b" "c" ]`. A strategy written for a
+literal dotted segment as `strategies."a.b"` now names the path `[ "a" "b" ]`, so
+over `{ "a.b".p = 1; }` it matches nothing and is not applied — the same silent
+miss as any unmatched strategy key. A nested `strategies` tree looked up by path
+(`strategies.a.b = "append"`) would take the encoding off the surface callers
+write by hand; it is not taken for now, and remains open while nothing calls
+these functions with such keys.
+
+**Cost.** Flatten re-encodes the whole path at each node and unflatten checks
+each segment's escape, so both remain quadratic in nesting depth, as before. The
+constant grows: measured in Nix values allocated for a flatten/unflatten round
+trip, about 1.6× on a wide tree (27 000 leaves, depth 3) and about 2.5× on a deep
+chain (depth 200–800).
 
 ### Either Combinators
 

@@ -1,6 +1,78 @@
 { lib, genAlgebra, ... }:
 let
   inherit (genAlgebra) record;
+
+  # Round-trip fixtures for the key encoding. `tilde` and `empty-nested-vs-top` are the
+  # only fixtures that red the two plausible wrong fixes — escaping "." but not "~", and
+  # keeping "" as the root sentinel — so they stay verbatim.
+  roundTripFixtures = {
+    plain = {
+      a.b = 1;
+      a.c = 2;
+      d = 3;
+    };
+    dotted-top = {
+      "a.b" = 1;
+    };
+    collision = {
+      "a.b" = 1;
+      a.b = 2;
+    };
+    dotted-deep = {
+      x."y.z".w = 1;
+      x.y.z.w = 2;
+    };
+    empty-top = {
+      "" = 1;
+    };
+    empty-nested-vs-top = {
+      "" = {
+        x = 1;
+      };
+      x = 2;
+    };
+    empty-inner = {
+      a."" = 1;
+      "a." = 2;
+    };
+    tilde = {
+      "~" = 1;
+      "a~1b" = 2;
+      "a.b" = 3;
+    };
+    unicode = {
+      "é.ü"."日本" = 1;
+      "é"."ü"."日本" = 2;
+      "ß" = 3;
+    };
+    empty-set-leaf = {
+      a = { };
+      b.c = 1;
+    };
+    empty = { };
+  };
+
+  refused =
+    key: !(builtins.tryEval (builtins.deepSeq (record.unflattenAttrs { ${key} = 1; }) true)).success;
+
+  # One segment alphabet over the escape's edge cases: "~", both escapes, ".", "", a key
+  # that is itself an escape sequence, unicode, a newline, a trailing "~".
+  segmentAlphabet = [
+    "~"
+    "~0"
+    "~1"
+    "."
+    ".."
+    ""
+    "~01"
+    "a~"
+    "é.ü"
+    "日本"
+    "x\ny"
+    "~~"
+    "~.~"
+    "a"
+  ];
 in
 {
   flake.tests.rec-nested-layers = {
@@ -188,6 +260,123 @@ in
           b = "override";
           c = "default-c";
         };
+      };
+    };
+
+    # A key containing "." and the nested path it spells are two leaves, not one.
+    test-flatten-dotted-key-no-collision = {
+      expr = record.flattenAttrs { } {
+        "a.b" = 1;
+        a.b = 2;
+      };
+      expected = {
+        "a~1b" = 1;
+        "a.b" = 2;
+      };
+    };
+
+    # unflatten ∘ flatten is the identity; the value is the list of fixtures it fails on.
+    test-roundtrip-identity-fixtures = {
+      expr = builtins.filter (
+        n: record.unflattenAttrs (record.flattenAttrs { } roundTripFixtures.${n}) != roundTripFixtures.${n}
+      ) (builtins.attrNames roundTripFixtures);
+      expected = [ ];
+    };
+
+    test-fold-nested-dotted-key-no-collision = {
+      expr = record.foldNestedLayers {
+        layers = [
+          { "a.b" = "literal"; }
+          { a.b = "nested"; }
+        ];
+      };
+      expected = {
+        "a.b" = "literal";
+        a.b = "nested";
+      };
+    };
+
+    # A strategy for a segment containing "." is keyed by its escape.
+    test-flatten-strategy-escaped-key = {
+      expr = record.flattenAttrs { strategies."a~1b" = "recursive"; } {
+        "a.b".p = 1;
+      };
+      expected = {
+        "a~1b" = {
+          p = 1;
+        };
+      };
+    };
+
+    # A "~" not followed by 0 or 1 is outside the escape's image, and decoding it
+    # leniently would merge { "~" = 1; "~0" = 2; } into one path.
+    test-unflatten-refuses-non-canonical-segment = {
+      expr = map refused [
+        "~"
+        "a~"
+        "~2"
+        "a~2b"
+        "~~"
+      ];
+      expected = [
+        true
+        true
+        true
+        true
+        true
+      ];
+    };
+
+    test-unflatten-refuses-non-canonical-inner-segment = {
+      expr = refused "ok.a~2b.ok";
+      expected = true;
+    };
+
+    # Every escaped segment is accepted and decodes to itself.
+    test-unflatten-accepts-every-escape = {
+      expr = builtins.filter (
+        s:
+        refused (builtins.replaceStrings [ "~" "." ] [ "~0" "~1" ] s)
+        || record.unflattenAttrs (record.flattenAttrs { } { ${s} = 1; }) != { ${s} = 1; }
+      ) segmentAlphabet;
+      expected = [ ];
+    };
+
+    # Control: foldLayers never flattens, so the encoding leaves it untouched. The
+    # layered record mirrors gen-demo's C13 construct (all three strategies + defaults).
+    test-fold-layers-control-unchanged = {
+      expr = record.foldLayers {
+        strategies = {
+          tacks = "append";
+          meta = "recursive";
+        };
+        defaults = {
+          gauge = "fine";
+        };
+        layers = [
+          {
+            spool = "linen";
+            tacks = [ "a" ];
+            meta.warp = 1;
+          }
+          {
+            spool = "sateen";
+            tacks = [ "b" ];
+            meta.weft = 2;
+          }
+        ];
+      };
+      expected = {
+        gauge = "fine";
+        meta = {
+          warp = 1;
+          weft = 2;
+        };
+        spool = "sateen";
+        tacks = [
+          "a"
+          "b"
+        ];
       };
     };
 

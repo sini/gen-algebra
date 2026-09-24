@@ -327,7 +327,12 @@ let
         provenance = builtins.mapAttrs (_: r: r.provenance) resolved;
       };
 
-    # Flatten nested attrset to dot-separated keys.
+    # Flatten nested attrset to path keys. A key is the attribute path, each segment
+    # escaped as in RFC 6901 §3 (JSON Pointer: "~" -> "~0", then "." -> "~1") and joined
+    # with "."; the escape's image contains no ".", so the encoding is injective on
+    # non-empty paths. The path is threaded as a segment LIST, so the empty segment is
+    # data and never the root. `prefix` is an already-encoded key ("" is the root), and
+    # `strategies` is keyed by the same encoding.
     # Halts recursion at fields whose strategy is "recursive".
     flattenAttrs =
       {
@@ -336,33 +341,43 @@ let
       }:
       attrs:
       let
+        keyOf =
+          segs:
+          let
+            p = builtins.concatStringsSep "." (map escapeSegment segs);
+          in
+          if prefix == "" then p else "${prefix}.${p}";
         go =
-          pfx: a:
+          segs: a:
           builtins.foldl' (
             acc: k:
             let
               v = a.${k};
-              key = if pfx == "" then k else "${pfx}.${k}";
+              here = segs ++ [ k ];
+              key = keyOf here;
               strategy = strategies.${key} or null;
             in
             if builtins.isAttrs v && v != { } && strategy != "recursive" then
-              acc // go key v
+              acc // go here v
             else
               acc // { ${key} = v; }
           ) { } (builtins.attrNames a);
       in
-      go prefix attrs;
+      go [ ] attrs;
 
-    # Unflatten dot-separated keys back to nested attrset.
+    # Unflatten path keys back to a nested attrset: split on ".", then decode each
+    # segment in one left-to-right pass ("~1" -> ".", "~0" -> "~"; RFC 6901 §4 order).
+    # A segment outside the escape's image ("~" not followed by 0 or 1) is refused by
+    # name, since decoding it leniently would let two distinct keys land on one path.
     unflattenAttrs =
       flat:
       let
         setByPath =
-          path: value:
-          if builtins.length path == 1 then
-            { ${builtins.head path} = value; }
+          segs: value:
+          if builtins.length segs == 1 then
+            { ${builtins.head segs} = value; }
           else
-            { ${builtins.head path} = setByPath (builtins.tail path) value; };
+            { ${builtins.head segs} = setByPath (builtins.tail segs) value; };
         recursiveUpdate =
           a: b:
           a
@@ -370,14 +385,22 @@ let
             k: bv:
             if a ? ${k} && builtins.isAttrs a.${k} && builtins.isAttrs bv then recursiveUpdate a.${k} bv else bv
           ) b;
+        decodeSegment =
+          key: s:
+          let
+            d = builtins.replaceStrings [ "~1" "~0" ] [ "." "~" ] s;
+          in
+          if escapeSegment d == s then
+            d
+          else
+            throw "rec.unflattenAttrs: key '${key}' has segment '${s}', which is not an RFC 6901 escape (a '~' must be followed by 0 or 1)";
       in
       builtins.foldl' (
         acc: key:
         let
-          parts = builtins.filter builtins.isString (builtins.split "\\." key);
-          value = flat.${key};
+          segs = map (decodeSegment key) (builtins.filter builtins.isString (builtins.split "\\." key));
         in
-        recursiveUpdate acc (setByPath parts value)
+        recursiveUpdate acc (setByPath segs flat.${key})
       ) { } (builtins.attrNames flat);
 
     # foldLayers for nested attrsets: flatten → foldLayers → unflatten.
@@ -398,5 +421,8 @@ let
       in
       self.unflattenAttrs folded;
   };
+
+  # RFC 6901 §3 segment escape, "." standing in for "/": flattenAttrs's key encoding.
+  escapeSegment = builtins.replaceStrings [ "~" "." ] [ "~0" "~1" ];
 in
 self
