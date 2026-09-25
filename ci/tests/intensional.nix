@@ -249,6 +249,8 @@ in
   # CONTROLS in the same cell: the pair still shares its name, so the name cannot be what separates
   # it; a value against itself and an inert equal-shaped rebound pair still identify, so the
   # relation is not constant-false; distinct names still separate, so it is not constant-true. The
+  # `closureOnly` pair shares the `fn` cell and differs in `closure` alone, so allocation cannot
+  # separate it: it is the row that reds when `closure` leaves the comparison subject. The
   # rebound LAMBDA-carrying pair is the priced loss — separately allocated lambdas compare unequal,
   # which merges strictly less than Fig. 5 and never more.
   flake.tests.intensional.test-unmigrated-decides-on-content-not-name =
@@ -278,6 +280,7 @@ in
     {
       expr = {
         differingClosures = conservativeEq u1 u7;
+        closureOnly = conservativeEq u1 (base // { closure.k = 7; });
         behavioursDiffer = (u1 "x") != (u7 "x");
         regime = genAlgebra.regimeTagOf (genAlgebra.identityOf u1);
         controlNamesEqual = u1.name == u7.name;
@@ -288,6 +291,7 @@ in
       };
       expected = {
         differingClosures = false;
+        closureOnly = false;
         behavioursDiffer = true;
         regime = "u";
         controlNamesEqual = true;

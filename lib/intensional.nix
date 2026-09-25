@@ -225,7 +225,9 @@ let
   # one half of it and COARSENS — it calls behaviourally distinct functions equal, which is the one
   # direction §2.3's guarantee forbids.
   #
-  # TWO ARMS, and neither merges more than Fig. 5. Minted values compare by digest, which is exact
+  # TWO ARMS, and over non-derivation operands neither merges more than Fig. 5 — Nix `==` compares
+  # two `type = "derivation"` attrsets by `outPath` alone, so a derivation-shaped pair differing
+  # only in `closure` compares EQUAL; ADR-0034 excludes every derivation. Minted values compare by digest, which is exact
   # and fuses both of Fig. 5's conjuncts into one comparison. EVERY OTHER PAIR — sealed, unmigrated,
   # or mixed — falls through to THE REIFIED VALUE, minus `comparisonSubject`'s one exclusion, and
   # never a list of components: ADR-0034's decision clause, "where it decides rather than mints, it

@@ -279,7 +279,10 @@ conservativeEq a c   # → true — independently constructed, one coordinate, o
 ```
 
 The relation dispatches on the identity **regime** rather than reading one field, and it has **two
-arms, neither of which merges more than Fig. 5**. Where both sides carry a minted identity the
+arms, neither of which merges more than Fig. 5** over non-derivation operands (Nix `==` compares two
+`type = "derivation"` attrsets by `outPath` alone, so a derivation-shaped pair differing only in
+`closure` compares equal; ADR-0034 excludes every derivation — see `conservativeEq`'s binding in
+`lib/intensional.nix`). Where both sides carry a minted identity the
 digests decide, which is exact and fuses both of Fig. 5's conjuncts. Every other pair — sealed,
 unmigrated or mixed — **falls through** to the **reified value** minus `__id`, never a list of
 components; on lambda-carrying values its precision is an allocation artefact, so two
