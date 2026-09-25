@@ -678,11 +678,16 @@ Tests live in `ci/` and run under nix-unit (via `gen-harness.lib.mkCi`). 161 tes
 
 ```bash
 # all suites
-nix flake check --override-input gen-algebra . ./ci
+nix develop ./ci --command ci
 
-# one suite (nix-unit)
-nix-unit --flake ./ci#tests.rec-composition --override-input gen-algebra .
+# one suite
+nix develop ./ci --command ci rec-composition
 ```
+
+`ci` refuses when anything under a declared read root is unknown to git — any extension or name,
+`_`-prefixed included — and the remedy is `git add` or a move. The bare `nix-unit --flake ./ci#tests`
+and `nix flake check ./ci` are unguarded: they read a git-filtered copy of the tree, so an untracked
+cell is silently absent and the run stays green.
 
 ## Theoretical Foundations
 
