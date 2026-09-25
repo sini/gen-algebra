@@ -21,5 +21,9 @@ in
     regimeTagOf
     isExact
     comparisonSubject
+    sealedMarker
+    preimageTagOf
+    componentsPreimage
+    sealedCollisionEq
     ;
 }

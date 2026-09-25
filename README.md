@@ -95,7 +95,7 @@ in
 
 ## API Reference
 
-Every exported name is documented below, grouped by primitive family. The full surface is `search` (8), `record` (26), `either` (6), plus top-level `mkIntensional`, `conservativeEq` and the four identity-regime readers (`identityOf`, `regimeTagOf`, `isExact`, `comparisonSubject`) — verified against `nix eval .#lib`.
+Every exported name is documented below, grouped by primitive family. The full surface is `search` (8), `record` (26), `either` (6), plus top-level `mkIntensional`, `conservativeEq`, the four identity-regime readers (`identityOf`, `regimeTagOf`, `isExact`, `comparisonSubject`) and the four composite-preimage names (`preimageTagOf`, `componentsPreimage`, `sealedCollisionEq`, `sealedMarker`) — verified against `nix eval .#lib`.
 
 ### Search Monad
 
@@ -311,6 +311,40 @@ where nothing is minted that accessor is the named refusal itself.
 Continuation dedup in `search.converge` shares this discipline rather than calling `conservativeEq`:
 it keys exactly where an identity is minted and buckets otherwise, with every key carrying a regime
 tag so the three arms occupy disjoint key spaces.
+
+#### `preimageTagOf` / `componentsPreimage` / `sealedCollisionEq` / `sealedMarker`
+
+A **composite** whose components sit on different identity regimes stays minted: each component
+enters the composite's preimage as a **preimage tag**, and one sealed component does not drag the
+whole composite onto the comparison arm. The mint is injected, as `mkIntensional` takes it.
+
+`preimageTagOf hashIdentity v` gives one tag per value shape, each a record under its own key:
+
+| value                                                                                | tag                                   |
+| ------------------------------------------------------------------------------------ | ------------------------------------- |
+| carries a minted identity                                                            | `{ minted = <digest>; }`              |
+| throws (catchably) at WHNF: no value to identify                                     | `{ undefined = true; }`               |
+| the mint takes it: an inert value                                                    | `{ inert = <digest>; }`               |
+| anything else: a lambda, a path, a derivation, an unmigrated or partly defined value | `sealedMarker` (`{ sealed = true; }`) |
+
+```nix
+componentsPreimage hashIdentity [
+  { path = [ "port" ]; value = 80; }
+  { path = [ "body" ]; value = x: x; sealed = true; }   # declared sealed: tagged, never forced
+]
+# → { tags = { port = { inert = "…"; }; body = { sealed = true; }; };
+#     sealed = { body = <the lambda>; }; }
+```
+
+`componentsPreimage` returns the tags a composite mints over and the **sealed subjects** a
+comparison reads, from one call, so the two cannot describe different planes. A duplicate path,
+a non-string segment or a non-boolean `sealed` is refused by name.
+
+`sealedCollisionEq site a b` over `{ name; mark; sealed; }` decides `false` on distinct marks and
+`true` on equal marks with `==` sealed subjects. Equal marks with unequal subjects are two
+declarations the mark cannot tell apart, and they are **refused by name**, listing the sealed
+components that differ, rather than merged. Two separately built lambdas are unequal, so two
+constructions of one sealed declaration refuse: the same allocation residue as `conservativeEq`.
 
 ### Record Algebra
 

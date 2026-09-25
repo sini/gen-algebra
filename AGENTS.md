@@ -123,11 +123,12 @@ No `isRight` / `fromRight` / `bimap` — consumers test `? right` / `? left` dir
 
 **Intensional functions and identity** — top level
 
-| Export                                                         | Signature                                                                                                                                                                                                         |
-| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mkIntensional`                                                | `hashIdentity -> registry -> ctor -> args -> { ctor; args; name; closure; fn; __mint; __functor; }` (callable). `registry` is `{ revision; members; }`; the mint is INJECTED because `hashIdentity` is downstream |
-| `conservativeEq`                                               | `intensional -> intensional -> bool` (dispatches on the `__mint` regime; digests where minted, whole-value `==` minus `__id` otherwise)                                                                           |
-| `identityOf` / `regimeTagOf` / `isExact` / `comparisonSubject` | the identity-regime readers — a consumer that DECIDES dispatches on the tag and never reads `__mint.minted` raw                                                                                                   |
+| Export                                                                        | Signature                                                                                                                                                                                                                                         |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mkIntensional`                                                               | `hashIdentity -> registry -> ctor -> args -> { ctor; args; name; closure; fn; __mint; __functor; }` (callable). `registry` is `{ revision; members; }`; the mint is INJECTED because `hashIdentity` is downstream                                 |
+| `conservativeEq`                                                              | `intensional -> intensional -> bool` (dispatches on the `__mint` regime; digests where minted, whole-value `==` minus `__id` otherwise)                                                                                                           |
+| `identityOf` / `regimeTagOf` / `isExact` / `comparisonSubject`                | the identity-regime readers — a consumer that DECIDES dispatches on the tag and never reads `__mint.minted` raw                                                                                                                                   |
+| `preimageTagOf` / `componentsPreimage` / `sealedCollisionEq` / `sealedMarker` | a composite's per-component preimage tags (`minted`, `inert`, `undefined` at WHNF, `sealedMarker`), its tags and sealed subjects from one call, and the by-name refusal where two declarations mint one mark and differ only at sealed components |
 
 ## The zero-inputs contract, and what it binds
 
@@ -247,7 +248,7 @@ The namespace set is discovered by `isAttrs` rather than hardcoded, so a new nam
 Current output (verbatim):
 
 ```json
-{"either":["chain","collectErrors","left","mapR","pipe","right"],"record":["assertSatisfies","combine","compose","depth","emit","emitAll","empty","extend","flattenAttrs","foldLayers","foldLayersTraced","foldNestedLayers","fromAttrs","has","labels","mixin","mixinBeta","rename","restrict","satisfies","select","show","showCompact","unflattenAttrs","update","upsert"],"search":["converge","emit","empty","foldl","has","insert","lookup","on"],"top":["comparisonSubject","conservativeEq","either","identityOf","isExact","mkIntensional","record","regimeTagOf","search"]}
+{"either":["chain","collectErrors","left","mapR","pipe","right"],"record":["assertSatisfies","combine","compose","depth","emit","emitAll","empty","extend","flattenAttrs","foldLayers","foldLayersTraced","foldNestedLayers","fromAttrs","has","labels","mixin","mixinBeta","rename","restrict","satisfies","select","show","showCompact","unflattenAttrs","update","upsert"],"sealedMarker":["sealed"],"search":["converge","emit","empty","foldl","has","insert","lookup","on"],"top":["comparisonSubject","componentsPreimage","conservativeEq","either","identityOf","isExact","mkIntensional","preimageTagOf","record","regimeTagOf","sealedCollisionEq","sealedMarker","search"]}
 ```
 
 The command observes export *names* only; signatures, strategy vocabularies, trap rows and `file:line` refs rot without changing it.

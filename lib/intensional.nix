@@ -98,6 +98,160 @@ let
   # an identity, where a catchable named refusal is the correct outcome rather than a hazard.
   comparisonSubject = v: removeAttrs v [ "__id" ];
 
+  # ── per-component preimage tags (c+), den-hoag-markof-partial-preimage-znfjq ──
+  #
+  # A composite whose components sit on different ADR-0034 regimes stays MINTED: each component
+  # enters its preimage as a TAG, "a sealed site gets no identity, a total tagged field", and the
+  # limbs apply PER COMPONENT so one sealed component does not drag the composite onto the
+  # comparison limb. (Not `regimeTagOf` above, which is the one-character KEY-SPACE tag; these
+  # are PREIMAGE tags.) Four shapes, each a record under its own key so no shape can render into
+  # another's:
+  #
+  #   { minted = <digest>; }  the component carries a minted identity (read through `identityOf`)
+  #   { inert = <digest>; }   an inert value: the mint takes it whole
+  #   { undefined = true; }   the value throws (catchably) at WHNF: it has no value to identify,
+  #                           e.g. an option with no default at the kind level
+  #   sealedMarker            anything else: a lambda, a path, a derivation, an unmintable or an
+  #                           unmigrated value, a value past the encoder's bounds, and a value
+  #                           defined at WHNF with a member that throws
+  #
+  # `undefined` is decided at WHNF, never under `deepSeq`: a value with SOME content (a record
+  # with one throwing member, a package with a throwing passthru) is not valueless, and tagging
+  # it `undefined` would drop the content it has. It goes to the mint, whose catchable refusal
+  # seals it. `deepSeq` over a real package also recurses past the evaluator's call depth, an
+  # abort `tryEval` cannot catch; the mint refuses the same package catchably.
+  #
+  # THE REGIME IS DECIDED BY THE MINT unless the constructor declares it: the encoder is total,
+  # so handing it the value and reading the answer IS the classification (gen-types
+  # `mkChecker`'s idiom). A component a constructor declares sealed is tagged without trying.
+  # The mint is INJECTED, as `mkIntensional` takes it, so gen-algebra imports nothing.
+  #
+  # RESIDUE: forcing a value that aborts UNCATCHABLY (a missing attribute, a type error) aborts
+  # here too. The mint forces its input; `tryEval` catches throws only.
+  sealedMarker = {
+    sealed = true;
+  };
+  preimageTagOf =
+    hashIdentity: v:
+    let
+      carriesMint = builtins.tryEval (builtins.isAttrs v && v ? __mint);
+    in
+    if !carriesMint.success then
+      { undefined = true; }
+    else if carriesMint.value then
+      let
+        i = identityOf v;
+      in
+      if isExact i then { inherit (i) minted; } else sealedMarker
+    else
+      let
+        attempt = builtins.tryEval (hashIdentity "component" [ "value" ] (_: v));
+      in
+      if attempt.success then { inert = attempt.value; } else sealedMarker;
+
+  # A composite's components, as a list of `{ path; value; sealed ? false; }` (`path` a list of
+  # segments), to its preimage and its sealed subjects. Both maps are keyed by the path's
+  # segments RFC 6901-escaped and joined with "." — `rec.nix` `flattenAttrs`'s key encoding, which
+  # is injective where a bare join is not. `sealed` maps each SEALED component to
+  # the value a `==` decision compares — the reified value minus its `__id` accessor
+  # (`comparisonSubject`). A composite mints over `tags`; a door comparing two composites hands
+  # `sealed` to `sealedCollisionEq`. ONE call yields both, so the two cannot read different planes.
+  componentsPreimage =
+    hashIdentity: components0:
+    let
+      # An honest caller's shape mistake is refused by name, never an uncatchable missing attribute.
+      components =
+        if
+          builtins.isList components0
+          && builtins.all (
+            c:
+            builtins.isAttrs c
+            && c ? value
+            && builtins.isList (c.path or null)
+            && builtins.all builtins.isString c.path
+            && builtins.isBool (c.sealed or false)
+          ) components0
+        then
+          components0
+        else
+          throw "componentsPreimage: expected a list of { path = [ <string segment> ]; value; sealed ? <bool>; }";
+      tagged = map (
+        c:
+        c
+        // {
+          key = builtins.concatStringsSep "." (
+            map (builtins.replaceStrings [ "~" "." ] [ "~0" "~1" ]) c.path
+          );
+          tag = if c.sealed or false then sealedMarker else preimageTagOf hashIdentity c.value;
+        }
+      ) components;
+      tags = builtins.listToAttrs (
+        map (c: {
+          name = c.key;
+          value = c.tag;
+        }) tagged
+      );
+    in
+    # Two components at one path would keep the first and DROP the other silently (`listToAttrs`),
+    # so the composite would mint over a partial preimage: refused by name instead.
+    if builtins.length (builtins.attrNames tags) != builtins.length tagged then
+      throw "componentsPreimage: two components share a path; each component needs its own path"
+    else
+      {
+        inherit tags;
+        sealed = builtins.listToAttrs (
+          map (c: {
+            name = c.key;
+            # `comparisonSubject` only where there is an `__id` to drop: `removeAttrs` allocates, and
+            # an unchanged value keeps the pointer `==` short-circuits on.
+            value = if builtins.isAttrs c.value && c.value ? __id then comparisonSubject c.value else c.value;
+          }) (builtins.filter (c: c.tag == sealedMarker) tagged)
+        );
+      };
+
+  # THE COLLISION REFUSAL (c+). `a` and `b` are `{ name; mark; sealed; }`, `mark` minted over a
+  # `componentsPreimage`'s `tags` and `sealed` its `sealed`. Distinct marks decide `false`; equal
+  # marks with `==` sealed subjects decide `true`; equal marks with unequal subjects are two
+  # declarations the mark cannot tell apart, and ADR-0034 replaces that collapse with a refusal
+  # BY NAME. The decision is ONE `==` over the whole subject (the component-list clause); the
+  # component names are read only to word the refusal. Two separately built lambdas are unequal,
+  # so a sealed twin built twice is refused: the sound direction, and `conservativeEq`'s residue.
+  # A subject with a throwing member can make `==` throw before it reaches a differing one, so
+  # each `==` runs under `tryEval` and a throw counts as unequal: the refusal is by name either way.
+  sealedCollisionEq =
+    site: a: b:
+    let
+      eq =
+        x: y:
+        let
+          r = builtins.tryEval (x == y);
+        in
+        r.success && r.value;
+    in
+    if
+      !(builtins.all
+        (x: builtins.isAttrs x && x ? name && x ? mark && builtins.isAttrs (x.sealed or null))
+        [
+          a
+          b
+        ]
+      )
+    then
+      throw "${site}: sealedCollisionEq expects two { name; mark; sealed = { <component> = <subject>; }; }"
+    else if a.mark != b.mark then
+      false
+    else if eq a.sealed b.sealed then
+      true
+    else
+      let
+        differing = builtins.filter (k: !(b.sealed ? ${k}) || !(eq a.sealed.${k} b.sealed.${k})) (
+          builtins.attrNames a.sealed
+        );
+      in
+      throw "${site}: two declarations of '${a.name}' mint one identity and differ, compared as values, only at sealed component(s) ${
+        builtins.concatStringsSep ", " (map (k: "'${k}'") differing)
+      }; a sealed component has no identity (ADR-0034): migrate it to a first-order term, a registered constructor over inert arguments, so that it mints";
+
   # ── the encoder ──
   #
   # ★ THIS CONSTRUCTION IS LORENZEN'S LAZY CONSTRUCTOR (§1). A lazy constructor carries INERT
@@ -276,5 +430,9 @@ in
     regimeTagOf
     isExact
     comparisonSubject
+    sealedMarker
+    preimageTagOf
+    componentsPreimage
+    sealedCollisionEq
     ;
 }
