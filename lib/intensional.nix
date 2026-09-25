@@ -42,9 +42,10 @@ let
   #   unmigrated — the migration window: no producer has stamped this value, so the shipped
   #                program-point name is the bucket label.
   #
-  # This discipline lives HERE, with the constructor that emits the tag, and `search.nix` reads it
+  # This discipline lives HERE, with the constructor that emits the tag, and any key site reads it
   # from here rather than keeping its own copy: one tagged sum with two readers is how the two stop
-  # agreeing.
+  # agreeing. This library's own key site, the `search` runner's continuation dedup, was retired
+  # under ADR-0008 §1 (den-hoag-b7u1v); the discipline and its obligations stay with the tag.
   #
   # ★ THAT CONSOLIDATION IS REPO-LOCAL, AND CLAIMING MORE WOULD OVERSTATE IT. Measured across
   # `gen-*/lib`: `identityOf` has FOUR independent definitions — this one, gen-select's, gen-types'
@@ -80,6 +81,15 @@ let
 
   # Whether an arm's key is EXACT — a dedup key — or a bucket label. Read off the same `identityOf`
   # result rather than by re-testing `__mint`, so the tagged sum has one reader and not two.
+  #
+  # ★ A NON-EXACT KEY OBLIGES ITS CONSUMER. A key site that dedups on a bucket label must store the
+  # MEMBERS seen under each key (`key → [ members ]`) and decide membership by comparing
+  # `comparisonSubject` of the whole value against the bucket's members; presence of the key decides
+  # only on the exact (minted) arm. A boolean `seen` is not a bucket: there is nothing stored to
+  # compare against, so a presence test over a bucket label keeps 1 of 2 behaviourally distinct
+  # values (measured, closure-identity spec §2.7 site 4). The comparison's precision is an allocation
+  # artefact, and a finer relation costs dedup and never correctness — only where the relation
+  # merges WORK; a site whose relation decides an answer owes its own argument.
   isExact = i: i ? minted;
 
   # The comparison SUBJECT for the non-exact arms: the reified value MINUS `__id`, and minus nothing
@@ -393,14 +403,14 @@ let
   # ★ THERE IS NO NAME ARM. An unmigrated value's `name` is its program point, and deciding on it
   # alone merges strictly MORE — two values at one point with differing closures would compare EQUAL
   # where Fig. 5 separates them, the one direction §2.3 forbids. The name remains the unmigrated
-  # regime's bucket LABEL at the key site (`search.nix`), where a structural comparison follows it;
-  # it never decides here.
+  # regime's bucket LABEL at a key site, where a structural comparison follows it (`isExact`'s
+  # obligation); it never decides here.
   #
   # ★ THE FALL-THROUGH IS TOTAL OVER INERT ATTRSET OPERANDS, AND PARTIAL OVER THREE POPULATIONS — a
   # caller payload that refuses under any key but `__id` (a catchable refusal), a self-referential
   # payload (an UNCATCHABLE evaluator abort), and a non-attrset operand (`removeAttrs` refuses it,
   # also uncatchably). That is a
-  # property of structural equality over caller data, shared with the key site's bucket scan and with
+  # property of structural equality over caller data, shared with any key site's bucket scan and with
   # gen-select's `selectorEq`, which rules the same boundary. Closing it is a BOUNDED walk, which
   # ADR-0034 gives the mint and not this clause; it is an open design question, not a local fix.
   #

@@ -1,5 +1,5 @@
 {
-  description = "gen-algebra demo: search monad, intensional dedup, record algebra, either";
+  description = "gen-algebra demo: record algebra, either";
 
   inputs = {
     gen-algebra.url = "github:sini/gen-algebra";
@@ -11,66 +11,8 @@
     let
       lib = nixpkgs.lib;
       g = inputs.gen-algebra.lib;
-      inherit (g)
-        search
-        mkIntensional
-        ;
-
-      # mkIntensional is an ENCODER: it takes the minting authority and a registry,
-      # then a constructor name and an inert argument value. The author supplies
-      # (ctor, args) and nothing else — there is no closure argument to under-supply.
-      #
-      # THE MINT IS INJECTED because gen-schema's `hashIdentity`, the substrate's one
-      # minting authority, lives downstream of gen-algebra; importing it would close a
-      # flake dependency cycle. A real consumer passes `genSchema.hashIdentity` here.
-      # This demo stands one in so it stays what gen-algebra itself is: dependency-free.
-      mintStub =
-        kind: labels: valueOf:
-        "${kind}:"
-        + builtins.toJSON (
-          map (l: [
-            l
-            (valueOf l)
-          ]) labels
-        );
-
-      # `members` maps a constructor name to a builder over the inert argument value —
-      # the builder is where the behaviour lives. `revision` is required and total: a
-      # registry declaring none is refused by name at construction, never defaulted.
-      registry = {
-        revision = "demo-r1";
-        members.counter = args: (v: s: search.emit [ "${args.tag}:${v}" ] s);
-      };
-      mk = mkIntensional mintStub registry;
     in
     {
-      # Pure tier: search monad workflow
-      # Insert users, register continuation that derives greetings, converge.
-      searchResult =
-        let
-          s0 = search.insert "users" "alice" search.empty;
-          s1 = search.insert "users" "bob" s0;
-          s2 = search.on "users" (name: s: search.emit [ "hello:${name}" ] s) s1;
-          final = search.converge s2;
-        in
-        final.results;
-      # → [ "hello:alice" "hello:bob" ]
-
-      # Pure tier: intensional continuation dedup
-      # TWO INDEPENDENTLY CONSTRUCTED continuations sharing one coordinate — same ctor,
-      # same args — mint ONE identity, so the dedup key is exact and only one fires.
-      # Give the second a different `tag` and both fire: they are then two behaviours,
-      # and the relation that used to compare program-point names alone merged them.
-      dedupResult =
-        let
-          s0 = search.insert "k" "v" search.empty;
-          s1 = search.on "k" (mk "counter" { tag = "counted"; }) s0;
-          s2 = search.on "k" (mk "counter" { tag = "counted"; }) s1;
-          final = search.converge s2;
-        in
-        final.results;
-      # → [ "counted:v" ]
-
       # Record algebra: scoped labels (Leijen 2005)
       # Duplicate labels form a stack — restriction exposes previous values.
       scopedLabels =

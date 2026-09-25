@@ -1,11 +1,10 @@
 let
-  search = import ./search.nix;
   either = import ./either.nix;
   intensional = import ./intensional.nix;
   record = import ./rec.nix;
 in
 {
-  inherit search either record;
+  inherit either record;
 
   # `conservativeEq` is Palmer's own term for this relation (§2.3, §5.3, §8): "intensional"
   # qualifies the FUNCTION, never the equality. The old export name read as a licence to compare

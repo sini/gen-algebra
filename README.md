@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/sini/gen-algebra/actions/workflows/ci.yml/badge.svg)](https://github.com/sini/gen-algebra/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink?logo=github)](https://github.com/sponsors/sini)
 
-Foundational primitives for the gen family: a Palmer §3 search monad, intensional functions, standalone identity hashing, record algebra with scoped labels, and Either combinators.
+Foundational primitives for the gen family: intensional functions, standalone identity hashing, record algebra with scoped labels, and Either combinators.
 
 **Class A (pure, zero-input).** gen-algebra declares no flake inputs and depends on nothing — not even nixpkgs `lib`; it is `builtins`-only and sits at the pure-algebra root of the ecosystem. A CI purity invariant (`ci/tests/purity.nix`) enforces this: any stray `lib.types` / `mkOption` / `evalModules` in the library source fails the suite.
 
@@ -19,14 +19,14 @@ Foundational primitives for the gen family: a Palmer §3 search monad, intension
 
 ## Overview
 
-gen-algebra is a fully pure Nix library — zero dependencies, `builtins` only. Search monad for indexed state threading with convergence. Intensional function constructors for conservative equality (Palmer §2.2-2.3). Record algebra with scoped labels (Leijen §2) and mixin composition (Bracha §2-4). Either combinators. Standalone identity hashing.
+gen-algebra is a fully pure Nix library — zero dependencies, `builtins` only. Intensional function constructors for conservative equality (Palmer §2.2-2.3). Record algebra with scoped labels (Leijen §2) and mixin composition (Bracha §2-4). Either combinators. Standalone identity hashing.
 
 The module-system tier (identity/strict/validators/cross-registry refs for `lib.evalModules`) **relocated to [gen-schema](https://github.com/sini/gen-schema)**, its sole consumer; gen-algebra is the ecosystem's pure-algebra root. Its former `pure` tier is now simply the `lib` output — everything gen-algebra ships is pure.
 
 ### Extraction Lineage
 
 ```
-flake-aspects ──→ gen-algebra.search, gen-algebra.mkIntensional, gen-algebra.conservativeEq
+flake-aspects ──→ gen-algebra.mkIntensional, gen-algebra.conservativeEq
                     ↓
               gen-schema (typed registries on gen-algebra primitives;
                           owns the module-system tier — identity/strict/validators/refs)
@@ -43,7 +43,7 @@ gen-algebra has zero flake inputs — this lineage shows where each primitive wa
 | Library                                              | Role                                                                                                                   |
 | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | [gen-prelude](https://github.com/sini/gen-prelude)   | Pure nixpkgs-lib-free utility base (builtins re-exports + vendored lib utils)                                          |
-| [gen-algebra](https://github.com/sini/gen-algebra)   | **This lib** — Pure primitives (record, search monad, either, intensional identity)                                    |
+| [gen-algebra](https://github.com/sini/gen-algebra)   | **This lib** — Pure primitives (record, either, intensional identity)                                                  |
 | [gen-types](https://github.com/sini/gen-types)       | Clean-room MIT structural type checker (leaf/poly checkers; `verify: v → null\|err`)                                   |
 | [gen-merge](https://github.com/sini/gen-merge)       | Byte-mode module merge engine (`evalModuleTree`, byte-identical to nixpkgs `lib.evalModules` over the priority subset) |
 | [gen-schema](https://github.com/sini/gen-schema)     | Typed registries (kinds, instances, collections, refs); re-hosted on gen-merge                                         |
@@ -67,7 +67,6 @@ gen-algebra has zero flake inputs — this lineage shows where each primitive wa
   outputs = { gen-algebra, ... }:
     let
       # Fully pure — no lib needed. Everything is under the `lib` output.
-      search = gen-algebra.lib.search;
       inherit (gen-algebra.lib)
         mkIntensional
         conservativeEq
@@ -88,114 +87,14 @@ let
   gen = import ./path/to/gen-algebra { };
 in
 {
-  inherit (gen) search record either mkIntensional;
+  inherit (gen) record either mkIntensional;
 }
-# gen.search.empty, gen.record.fromAttrs, gen.either.right, … all `builtins`-only.
+# gen.record.fromAttrs, gen.either.right, … all `builtins`-only.
 ```
 
 ## API Reference
 
-Every exported name is documented below, grouped by primitive family. The full surface is `search` (8), `record` (26), `either` (6), plus top-level `mkIntensional`, `conservativeEq`, the four identity-regime readers (`identityOf`, `regimeTagOf`, `isExact`, `comparisonSubject`) and the four composite-preimage names (`preimageTagOf`, `componentsPreimage`, `sealedCollisionEq`, `sealedMarker`) — verified against `nix eval .#lib`.
-
-### Search Monad
-
-An indexed state monad for monotonic data accumulation with continuation-driven convergence. Zero dependencies — pure `builtins`.
-
-#### `empty`
-
-Initial state with empty index, results, and continuations.
-
-```nix
-search.empty
-# → { index = {}; results = []; continuations = []; }
-```
-
-#### `insert`
-
-Add a value to a key in the index. Values accumulate — multiple inserts to the same key append.
-
-```nix
-s = search.insert "users" "alice" search.empty;
-search.insert "users" "bob" s;
-# index.users → [ "alice" "bob" ]
-```
-
-#### `lookup`
-
-Retrieve values for a key. Returns `[]` for absent keys.
-
-```nix
-search.lookup "users" (search.insert "users" "alice" search.empty)
-# → [ "alice" ]
-
-search.lookup "missing" search.empty
-# → []
-```
-
-#### `has`
-
-Check if a key exists in the index.
-
-```nix
-search.has "users" (search.insert "users" "alice" search.empty)
-# → true
-
-search.has "users" search.empty
-# → false
-```
-
-#### `emit`
-
-Append items to the results list.
-
-```nix
-s = search.emit [ "a" "b" ] search.empty;
-(search.emit [ "c" ] s).results
-# → [ "a" "b" "c" ]
-```
-
-#### `foldl`
-
-`builtins.foldl'` — thread state through a list of values.
-
-```nix
-search.foldl (acc: item:
-  search.insert item true (search.emit [ item ] acc)
-) search.empty [ "a" "b" "c" ]
-# results → [ "a" "b" "c" ], index has "a", "b", "c"
-```
-
-#### `on`
-
-Register a continuation that fires when a key has unprocessed values during `converge`.
-
-```nix
-s0 = search.insert "users" "alice" search.empty;
-s1 = search.on "users" (name: s: search.emit [ "hello:${name}" ] s) s0;
-(search.converge s1).results
-# → [ "hello:alice" ]
-```
-
-#### `converge`
-
-Fixed-point convergence: fires all registered continuations on unprocessed values, repeats until stable. Safety guard at 1000 iterations.
-
-Continuations registered during convergence (via `on` inside a continuation body) fire in subsequent rounds. Intensional continuations (created with `mkIntensional`) watching the same index key are deduplicated **by identity regime**: where the wrapped value carries a minted identity the key is exact and presence decides, and otherwise the key is a **bucket** whose membership is decided by Nix `==` on the reified value **minus `__id`**.
-
-That distinction is load-bearing. A program point is constant across a constructor's instances, so a name-only key merged continuations that behave differently and dropped one **silently**; the bucket keeps both. The bucket's precision is an allocation artefact — one value registered twice dedups, two separately-constructed equal-shaped values do not — and since `converge` merges *work*, a finer relation costs dedup and never correctness.
-
-Every key also carries a one-character **regime tag** between the index key and the payload, so the three arms occupy disjoint key spaces. Without it a continuation merely *named* string-equal to another's minted digest lands on that digest's key and one of the two is dropped — and the drop is order-sensitive, so a probe that registers them in only one order reads clean.
-
-`__id` is excluded from the compared value, and it is the only exclusion. It is an accessor rather than distinguishing content, and where nothing is minted that accessor *is* the named refusal, so forcing it inside a bucket scan would detonate the decision the refusal exists to permit. One exclusion suffices: `__mint.minted` is the only other refusal-valued accessor, and the tagged sum shields it — its minted and sealed arms live under different key names, and Nix `==` decides on the name set before forcing any value.
-
-```nix
-# Multi-round: A inserts data, B watches data
-s0 = search.insert "trigger" "go" search.empty;
-s1 = search.on "trigger" (v: s: search.insert "data" "from-A" s) s0;
-s2 = search.on "data" (v: s: search.emit [ "B-saw:${v}" ] s) s1;
-(search.converge s2).results
-# → [ "B-saw:from-A" ]
-```
+Every exported name is documented below, grouped by primitive family. The full surface is `record` (26), `either` (6), plus top-level `mkIntensional`, `conservativeEq`, the four identity-regime readers (`identityOf`, `regimeTagOf`, `isExact`, `comparisonSubject`) and the four composite-preimage names (`preimageTagOf`, `componentsPreimage`, `sealedCollisionEq`, `sealedMarker`) — verified against `nix eval .#lib`.
 
 ### Intensional Functions
 
@@ -308,9 +207,16 @@ false.
 `__id` is excluded because it is the **accessor** a consumer reads when it *demands* an identity, and
 where nothing is minted that accessor is the named refusal itself.
 
-Continuation dedup in `search.converge` shares this discipline rather than calling `conservativeEq`:
-it keys exactly where an identity is minted and buckets otherwise, with every key carrying a regime
-tag so the three arms occupy disjoint key spaces.
+A key site that dedups on these identities reads the same discipline rather than calling
+`conservativeEq`: it keys exactly where an identity is minted and buckets otherwise, every key
+carrying a regime tag so the three arms occupy disjoint key spaces, and a bucket stores its members
+and compares inside itself (`isExact`'s obligation, `lib/intensional.nix`).
+
+The `search` namespace (Palmer §3's Search monad and its `converge` runner) is **retired**
+(den-hoag-b7u1v): under ADR-0008 §1 gen-scope is the sole evaluator, and `converge` interpreted a
+caller-authored continuation program on its own carrier and schedule. Its encoding also departed
+from the primary where it mattered: Palmer's Search is idempotent, deduplicating repeated `insert`s,
+and gen's appended them.
 
 #### `preimageTagOf` / `componentsPreimage` / `sealedCollisionEq` / `sealedMarker`
 
@@ -643,12 +549,10 @@ either.chain (x: if x > 0 then either.right (x * 10) else either.left "neg") (ei
 
 ## Demo
 
-See [`examples/demo/`](examples/demo/) for a self-contained example exercising search monad workflow, intensional dedup, record algebra, and either combinators.
+See [`examples/demo/`](examples/demo/) for a self-contained example exercising the record algebra and either combinators.
 
 ```bash
 cd examples/demo
-nix eval --override-input gen-algebra ../.. .#searchResult
-nix eval --override-input gen-algebra ../.. .#dedupResult
 nix eval --override-input gen-algebra ../.. .#scopedLabels
 nix eval --override-input gen-algebra ../.. .#eitherDemo
 ```
@@ -660,21 +564,20 @@ gen-algebra/
   default.nix              — non-flake entry (nullary function over the lib value: import ./default.nix { })
   flake.nix                — flake output (single `lib` value, no __functor)
   lib/
-    default.nix            — exports search + intensional + either + record
-    search.nix             — Palmer §3 Search monad (8 public primitives)
+    default.nix            — exports intensional + either + record
     intensional.nix        — mkIntensional, conservativeEq, the identity-regime discipline
     either.nix             — Either combinators (right, left, pipe, collectErrors, mapR, chain)
     rec.nix                — Leijen §2 record algebra with scoped labels + Bracha §2-4 mixin composition + foldLayers
   ci/                      — nix-unit test suite (incl. the purity invariant)
   examples/
-    demo/                  — self-contained demo (search + dedup + records + either)
+    demo/                  — self-contained demo (records + either)
 ```
 
 gen-algebra is fully pure — zero dependencies of any kind, not even nixpkgs `lib`. The CI purity invariant (`ci/tests/purity.nix`) enforces this: a stray `lib.types` / `mkOption` / `evalModules` in the library source fails the suite. The module-system tier relocated to [gen-schema](https://github.com/sini/gen-schema), its sole consumer.
 
 ## Testing
 
-Tests live in `ci/` and run under nix-unit (via `gen-harness.lib.mkCi`). 161 test cases across 12 suites (`nix-unit --flake ./ci#tests` ⇒ `161/161 successful`, `ee19090`) (`either`, `intensional`, `purity`, `rec-primitives`, `rec-derived`, `rec-row`, `rec-composition`, `rec-fold-layers`, `rec-fold-layers-traced`, `rec-nested-layers`, `search-primitives`, `search-converge`), including the purity invariant that fails on any stray `lib.types` / `mkOption` / `evalModules` in the library source. Requires nix-unit.
+Tests live in `ci/` and run under nix-unit (via `gen-harness.lib.mkCi`). 148 test cases across 12 suites (`nix develop ./ci --command ci` ⇒ `148/148 successful`) (`either`, `intensional`, `intensional-cplus`, `purity`, `repl`, `rec-primitives`, `rec-derived`, `rec-row`, `rec-composition`, `rec-fold-layers`, `rec-fold-layers-traced`, `rec-nested-layers`), including the purity invariant that fails on any stray `lib.types` / `mkOption` / `evalModules` in the library source. Requires nix-unit.
 
 ```bash
 # all suites
@@ -691,12 +594,12 @@ cell is silently absent and the run stays green.
 
 ## Theoretical Foundations
 
-| Paper                                                                                                                                         | Relationship | Used for                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| --------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Palmer et al. (2024) [*Intensional Functions*](https://dl.acm.org/doi/10.1145/3689714)                                                        | Informed by  | Search monad with continuation dedup (§3); the three intensional eliminators `__functor`/`name`/`closure` (§2.2-2.3). The constructor is an **encoder** (§5's Def 5.5–5.7 discharged by construction, as Palmer discharges them, rather than by a check), and both dedup and `conservativeEq` are **regime-dispatched** — exact where an identity is minted, a bucket or whole-value `==` otherwise — because Fig. 5 is a **conjunction** and the name-only relation gen used to ship merged behaviourally distinct functions. **The closure-consistency hypotheses discharge CONDITIONALLY**, on the registry `revision` a declaration can get wrong; the condition disappears only when builders become first-order terms. **Theorem 1 does not transfer** at all: it is a preservation theorem about 𝜆ITS reduction and gen is not 𝜆ITS. |
-| Lorenzen et al. (2025) [*First-Class Labels: First-Order Laziness*](https://doi.org/10.1145/3747530)                                          | Implements   | The registry construction in `lib/intensional.nix` **is** a lazy constructor (§1): inert first-order operands, with behaviour *"the associated right-hand side of the data declaration"* looked up by constructor at forcing, and the operands readable before anything is forced. The mechanism was identified at the landed construction rather than derived from the paper, and the fit is exact for §1's construct alone — none of the paper's memoization, in-place reuse or reference-counting results are claimed. **Where the two part company is openness:** §8 records the up-front data-type declaration as a *limitation*, and it is precisely because gen's registry is an open caller-supplied value that `revision` must enter the identity coordinate.                                                                      |
-| Reynolds (1972) [*Definitional Interpreters for Higher-Order Programming Languages*](https://doi.org/10.1023/A:1010027404223)                 | Informed by  | The constructor-plus-inert-argument **shape** only (§6, pp. 376-377) — replace a function value by a tag plus inert fields and interpret the tag. **Scoped deliberately:** his record fields are read off the lambda's own global variables (§6's one-record-equation-per-lambda table) where an author here chooses `args`; elimination is a single interpretive `apply` doing closed case analysis over `FUNVAL = CLOSR ∪ SC ∪ EQ1 ∪ EQ2` where dispatch here selects into an open map; and the union is enumerated from every lambda in the program, so it is a whole-program transformation with no registry.                                                                                                                                                                                                                           |
-| Leijen (2005) [*Extensible Records with Scoped Labels*](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/scopedlabels.pdf) | Implements   | Record algebra with extension/selection/restriction (§2), scoped labels via shadow stacks (§2.1-3.2), row compatibility checks (§3.1)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| Bracha & Cook (1990) [*Mixin-Based Inheritance*](https://www.bracha.org/oopsla90.pdf)                                                         | Implements   | Left-biased combination (§2.1 ⊕ operator), Smalltalk-direction mixin (§2.1), Beta-direction mixin (§2.2), associative mixin composition ⋆ (§4)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Paper                                                                                                                                         | Relationship | Used for                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| --------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Palmer et al. (2024) [*Intensional Functions*](https://dl.acm.org/doi/10.1145/3689714)                                                        | Informed by  | The Search monad of §3 was implemented and is retired under ADR-0008 §1 (its encoding also departed from the primary: gen's `insert` appended where Palmer's Search deduplicates); the three intensional eliminators `__functor`/`name`/`closure` (§2.2-2.3). The constructor is an **encoder** (§5's Def 5.5–5.7 discharged by construction, as Palmer discharges them, rather than by a check), and `conservativeEq` is **regime-dispatched** — exact where an identity is minted, a bucket or whole-value `==` otherwise — because Fig. 5 is a **conjunction** and the name-only relation gen used to ship merged behaviourally distinct functions. **The closure-consistency hypotheses discharge CONDITIONALLY**, on the registry `revision` a declaration can get wrong; the condition disappears only when builders become first-order terms. **Theorem 1 does not transfer** at all: it is a preservation theorem about 𝜆ITS reduction and gen is not 𝜆ITS. |
+| Lorenzen et al. (2025) [*First-Class Labels: First-Order Laziness*](https://doi.org/10.1145/3747530)                                          | Implements   | The registry construction in `lib/intensional.nix` **is** a lazy constructor (§1): inert first-order operands, with behaviour *"the associated right-hand side of the data declaration"* looked up by constructor at forcing, and the operands readable before anything is forced. The mechanism was identified at the landed construction rather than derived from the paper, and the fit is exact for §1's construct alone — none of the paper's memoization, in-place reuse or reference-counting results are claimed. **Where the two part company is openness:** §8 records the up-front data-type declaration as a *limitation*, and it is precisely because gen's registry is an open caller-supplied value that `revision` must enter the identity coordinate.                                                                                                                                                                                              |
+| Reynolds (1972) [*Definitional Interpreters for Higher-Order Programming Languages*](https://doi.org/10.1023/A:1010027404223)                 | Informed by  | The constructor-plus-inert-argument **shape** only (§6, pp. 376-377) — replace a function value by a tag plus inert fields and interpret the tag. **Scoped deliberately:** his record fields are read off the lambda's own global variables (§6's one-record-equation-per-lambda table) where an author here chooses `args`; elimination is a single interpretive `apply` doing closed case analysis over `FUNVAL = CLOSR ∪ SC ∪ EQ1 ∪ EQ2` where dispatch here selects into an open map; and the union is enumerated from every lambda in the program, so it is a whole-program transformation with no registry.                                                                                                                                                                                                                                                                                                                                                   |
+| Leijen (2005) [*Extensible Records with Scoped Labels*](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/scopedlabels.pdf) | Implements   | Record algebra with extension/selection/restriction (§2), scoped labels via shadow stacks (§2.1-3.2), row compatibility checks (§3.1)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Bracha & Cook (1990) [*Mixin-Based Inheritance*](https://www.bracha.org/oopsla90.pdf)                                                         | Implements   | Left-biased combination (§2.1 ⊕ operator), Smalltalk-direction mixin (§2.1), Beta-direction mixin (§2.2), associative mixin composition ⋆ (§4)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
-**Implements** means the code directly realizes the paper's constructs (`lib/search.nix` + `lib/intensional.nix` for Palmer's search monad and intensional *structure* and for Lorenzen's lazy constructor; `lib/rec.nix` for Leijen and Bracha). One caveat on the Palmer row: `conservativeEq` dispatches on the identity regime rather than realizing Fig. 5 — its minted arm fuses both conjuncts, its fall-through merges strictly less, and its unmigrated arm merges strictly *more* — the closure-consistency hypotheses discharge only *conditionally* — on a registry `revision` an author can get wrong — and Theorem 1 does not transfer at all. See [Intensional Functions](#intensional-functions).
+**Implements** means the code directly realizes the paper's constructs (`lib/intensional.nix` for Palmer's intensional *structure* and for Lorenzen's lazy constructor; `lib/rec.nix` for Leijen and Bracha). One caveat on the Palmer row: `conservativeEq` dispatches on the identity regime rather than realizing Fig. 5 — its minted arm fuses both conjuncts, its fall-through merges strictly less, and its unmigrated arm merges strictly *more* — the closure-consistency hypotheses discharge only *conditionally* — on a registry `revision` an author can get wrong — and Theorem 1 does not transfer at all. See [Intensional Functions](#intensional-functions).

@@ -102,12 +102,10 @@ in
         isIntensional = x: builtins.isAttrs x && x ? name && x ? __functor && x ? closure;
         # gen-select/lib/constructors.nix, the `when`-selector limb of `isIdentified`.
         isIdentifiedFn = x: builtins.isAttrs x && x ? name && x ? __functor && x ? closure;
-        # gen-algebra/lib/search.nix, the dedup loop's own guard.
-        classifiable = x: x ? name && x ? closure;
       in
       {
-        encoderBuilt = isIntensional v && isIdentifiedFn v && classifiable v;
-        controlFieldless = isIntensional fieldless || isIdentifiedFn fieldless || classifiable fieldless;
+        encoderBuilt = isIntensional v && isIdentifiedFn v;
+        controlFieldless = isIntensional fieldless || isIdentifiedFn fieldless;
       };
     expected = {
       encoderBuilt = true;

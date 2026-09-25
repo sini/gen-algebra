@@ -1,5 +1,5 @@
 {
-  description = "gen-algebra: pure Nix algebra — search monad, records, intensional functions, either";
+  description = "gen-algebra: pure Nix algebra — records, intensional functions, either";
 
   # ★ ZERO INPUTS, AS A CONTRACT AND NOT AN ACCIDENT — and the contract's SCOPE is stated here
   # because it was previously written nowhere and both readings were manufacturable.
