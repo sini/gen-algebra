@@ -225,16 +225,28 @@ let
   # one half of it and COARSENS — it calls behaviourally distinct functions equal, which is the one
   # direction §2.3's guarantee forbids.
   #
-  # THREE ARMS, and no merge direction holds over all three. Minted values compare by digest, which
-  # is exact and fuses both of Fig. 5's conjuncts into one comparison. The FALL-THROUGH compares THE
-  # REIFIED VALUE — minus `comparisonSubject`'s one exclusion — and never a list of components; its
-  # precision there is an allocation artefact, so two separately-constructed equal-shaped values
-  # compare unequal and that arm merges strictly LESS than Fig. 5.
+  # TWO ARMS, and neither merges more than Fig. 5. Minted values compare by digest, which is exact
+  # and fuses both of Fig. 5's conjuncts into one comparison. EVERY OTHER PAIR — sealed, unmigrated,
+  # or mixed — falls through to THE REIFIED VALUE, minus `comparisonSubject`'s one exclusion, and
+  # never a list of components: ADR-0034's decision clause, "where it decides rather than mints, it
+  # compares the reified value itself under Nix `==`". Its precision there is an allocation
+  # artefact on lambda-carrying values, so two separately-constructed equal-shaped values compare
+  # unequal and that arm merges strictly LESS than Fig. 5; on inert values it both identifies and
+  # separates.
   #
-  # The UNMIGRATED arm is neither: it decides on `name` alone, so it merges strictly MORE — two
-  # values at one program point with differing closures compare EQUAL here while Fig. 5 separates
-  # them. That is the coarsening the paragraph above names, still shipped, and it is why a direction
-  # is stated per arm and never over "the relation".
+  # ★ THERE IS NO NAME ARM. An unmigrated value's `name` is its program point, and deciding on it
+  # alone merges strictly MORE — two values at one point with differing closures would compare EQUAL
+  # where Fig. 5 separates them, the one direction §2.3 forbids. The name remains the unmigrated
+  # regime's bucket LABEL at the key site (`search.nix`), where a structural comparison follows it;
+  # it never decides here.
+  #
+  # ★ THE FALL-THROUGH IS TOTAL OVER INERT ATTRSET OPERANDS, AND PARTIAL OVER THREE POPULATIONS — a
+  # caller payload that refuses under any key but `__id` (a catchable refusal), a self-referential
+  # payload (an UNCATCHABLE evaluator abort), and a non-attrset operand (`removeAttrs` refuses it,
+  # also uncatchably). That is a
+  # property of structural equality over caller data, shared with the key site's bucket scan and with
+  # gen-select's `selectorEq`, which rules the same boundary. Closing it is a BOUNDED walk, which
+  # ADR-0034 gives the mint and not this clause; it is an open design question, not a local fix.
   #
   # A component-wise conjunct is not the remedy: ADR-0034's component-list clause rules that a
   # constructor's declared components name what the comparison's SUBJECT must be, and never a set of
@@ -251,8 +263,6 @@ let
     in
     if ia ? minted && ib ? minted then
       ia.minted == ib.minted
-    else if ia ? unmigrated && ib ? unmigrated then
-      ia.unmigrated == ib.unmigrated
     else
       comparisonSubject a == comparisonSubject b;
 in

@@ -278,14 +278,21 @@ c = mk "addN" { n = 1; };
 conservativeEq a c   # → true — independently constructed, one coordinate, one identity
 ```
 
-The relation dispatches on the identity **regime** rather than reading one field, and it has **three
-arms whose merge directions differ** — no one direction holds over "the relation". Where both sides
-carry a minted identity the digests decide, which is exact and fuses both of Fig. 5's conjuncts. The
-**fall-through** compares the **reified value** minus `__id`, never a list of components; its
-precision there is an allocation artefact, so two separately-constructed equal-shaped values compare
-unequal and that arm merges strictly **less** than Fig. 5. The **unmigrated** arm is neither: it
-decides on `name` alone, so it merges strictly **more** — two values at one program point with
-differing closures compare equal there while Fig. 5 separates them.
+The relation dispatches on the identity **regime** rather than reading one field, and it has **two
+arms, neither of which merges more than Fig. 5**. Where both sides carry a minted identity the
+digests decide, which is exact and fuses both of Fig. 5's conjuncts. Every other pair — sealed,
+unmigrated or mixed — **falls through** to the **reified value** minus `__id`, never a list of
+components; on lambda-carrying values its precision is an allocation artefact, so two
+separately-constructed equal-shaped values compare unequal and that arm merges strictly **less** than
+Fig. 5, while on inert values it both identifies and separates. There is **no name arm**: deciding an
+unmigrated pair on `name` alone would call two values at one program point with differing closures
+equal, which Fig. 5 forbids. The name stays the unmigrated regime's bucket *label* at the key site
+(below) and never decides.
+
+The fall-through is **total over inert attrset operands and partial over three populations**, the
+same boundary gen-select rules at `selectorEq`: a payload that refuses under any key but `__id`
+surfaces its own catchable throw, a self-referential payload aborts the evaluator uncatchably, and a
+non-attrset operand is refused by `removeAttrs`. `__id` is excluded; nothing else is.
 
 A component-wise conjunct is not the remedy. This design's component-list rule holds that a
 constructor's declared components name what the comparison's **subject** must be, and never a set of

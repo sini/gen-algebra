@@ -233,4 +233,129 @@ in
       demandingTheMintForces = true;
     };
   };
+
+  ## The non-exact arm — unmigrated and sealed values, which the encoder cannot produce.
+  #
+  # Both are hand-built records of the shape every shipped guard admits. Each pair shares ONE base
+  # and overrides ONE key, because Nix `==` compares an attrset's values in name order with a
+  # pointer fast path: two independently built records differ at `__functor` before any payload is
+  # reached, and a cell built that way would measure the ordering accident, not the comparison.
+
+  # ★ THE UNMIGRATED REGIME DECIDES ON CONTENT, NOT ON THE NAME (ADR-0034, den-hoag-3f39). Two
+  # values at one program point with differing closures and differing behaviour used to compare
+  # EQUAL on `name` alone — the coarsening Fig. 5 forbids. They now fall through to the reified
+  # comparison, which separates them.
+  #
+  # CONTROLS in the same cell: the pair still shares its name, so the name cannot be what separates
+  # it; a value against itself and an inert equal-shaped rebound pair still identify, so the
+  # relation is not constant-false; distinct names still separate, so it is not constant-true. The
+  # rebound LAMBDA-carrying pair is the priced loss — separately allocated lambdas compare unequal,
+  # which merges strictly less than Fig. 5 and never more.
+  flake.tests.intensional.test-unmigrated-decides-on-content-not-name =
+    let
+      base = {
+        name = "counter";
+        closure = {
+          k = 1;
+        };
+        fn = v: "${toString base.closure.k}:${v}";
+        __functor = self: self.fn;
+      };
+      u1 = base;
+      u7 = base // {
+        closure = {
+          k = 7;
+        };
+        fn = v: "7:${v}";
+      };
+      lambdaCarrying = _: {
+        name = "counter";
+        closure = { };
+        fn = v: v;
+        __functor = self: self.fn;
+      };
+    in
+    {
+      expr = {
+        differingClosures = conservativeEq u1 u7;
+        behavioursDiffer = (u1 "x") != (u7 "x");
+        regime = genAlgebra.regimeTagOf (genAlgebra.identityOf u1);
+        controlNamesEqual = u1.name == u7.name;
+        controlSelf = conservativeEq u1 u1;
+        controlDistinctNames = conservativeEq u1 (base // { name = "other"; });
+        inertReboundEqual = conservativeEq (base // { closure.k = 1; }) (base // { closure.k = 1; });
+        lambdaCarryingRebound = conservativeEq (lambdaCarrying 1) (lambdaCarrying 2);
+      };
+      expected = {
+        differingClosures = false;
+        behavioursDiffer = true;
+        regime = "u";
+        controlNamesEqual = true;
+        controlSelf = true;
+        controlDistinctNames = false;
+        inertReboundEqual = true;
+        lambdaCarryingRebound = false;
+      };
+    };
+
+  # ★ THE DOMAIN BOUNDARY ON THE NON-EXACT ARM. `comparisonSubject` excludes `__id` and NOTHING ELSE,
+  # so it discharges the one refusal ADR-0034 requires a sealed producer to carry and no other: a
+  # refusal one key over surfaces as its own named, catchable throw. The same boundary gen-select
+  # rules at `selectorEq` and pins with `test-structural-fallthrough-forces-its-payload`, whose four
+  # arms this cell mirrors, driven in BOTH non-exact regimes.
+  #
+  # The ordinary-key arm is the cell's other half, not a nicety: without it the cell is green on a
+  # build that excludes every key and on one that excludes none. A self-referential payload sits on
+  # the same boundary but aborts the evaluator uncatchably, so no cell can hold it; it is written at
+  # `conservativeEq`'s binding instead.
+  flake.tests.intensional.test-non-exact-arm-forces-its-payload =
+    let
+      decides = e: (builtins.tryEval e).success;
+      shaped =
+        regime:
+        {
+          name = "counter";
+          closure = { };
+          fn = v: v;
+          __functor = self: self.fn;
+        }
+        // regime;
+      arms =
+        regime:
+        let
+          base = shaped regime;
+          eqOn = a: b: conservativeEq (base // a) (base // b);
+        in
+        {
+          withRefusingAccessor = decides (
+            eqOn { __id = throw "identity: no mintable identity"; } {
+              __id = throw "identity: no mintable identity";
+            }
+          );
+          withOrdinaryKey = decides (eqOn { zz = throw "plain"; } { zz = throw "plain"; });
+          withNoRefusal = eqOn { zz = "v"; } { zz = "v"; };
+          withNoRefusalDiffering = eqOn { zz = "v"; } { zz = "w"; };
+        };
+      boundary = {
+        withRefusingAccessor = true;
+        withOrdinaryKey = false;
+        withNoRefusal = true;
+        withNoRefusalDiffering = false;
+      };
+    in
+    {
+      expr = {
+        unmigrated = arms { };
+        sealed = arms {
+          __mint.unmintable = {
+            reason = "a lambda in an identity position";
+            ctor = "counter";
+          };
+        };
+      };
+      expected = {
+        unmigrated = boundary;
+        sealed = boundary;
+      };
+    };
 }
