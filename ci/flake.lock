@@ -97,11 +97,11 @@
     },
     "gen-identity": {
       "locked": {
-        "lastModified": 1790400044,
-        "narHash": "sha256-AoWze73CfHjOxrXyLT8raqrwcEAR50E2Q55mXnzHax0=",
+        "lastModified": 1790443694,
+        "narHash": "sha256-bMRTyNF0vI4CAqRXSixzS3pmE/Uyk8TwpwH1OvpAnLw=",
         "owner": "sini",
         "repo": "gen-identity",
-        "rev": "7b8b7515f3c923ec1d22af1f4829f380dbb0065f",
+        "rev": "3d933ab2a183ad3a6a4db37738e232c01201618c",
         "type": "github"
       },
       "original": {
