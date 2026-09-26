@@ -450,10 +450,49 @@ consumer-side `map` over the finished provenance cannot give you. Omitting
 `flattenAttrs`, `unflattenAttrs`, and `foldNestedLayers` extend layer folding to
 nested attrsets. They are published here as `record.*` and re-exported unchanged by
 the gen hub as `gen.lib.substrate.algebra.record.*`, so the key language below is
-the same on both surfaces. `foldNestedLayers` is `foldLayers` for nested structures
-(flatten → `foldLayers` → unflatten); `flattenAttrs`/`unflattenAttrs` are its
-flatten/rebuild primitives (`flattenAttrs` halts recursion at fields whose
-strategy is `"recursive"`).
+the same on both surfaces. `foldNestedLayers` is `foldLayers` for nested
+structures, with `strategies` keyed by path; `flattenAttrs`/`unflattenAttrs` are
+the flatten/rebuild primitives for that key language (`flattenAttrs` halts
+recursion at fields whose strategy is `"recursive"`).
+
+**`foldNestedLayers` is a left fold of one binary step**, with `defaults` as the
+seed: the value is `foldl' step {} ([ defaults ] ++ layers)`. At a path `p`:
+
+| strategy at `p`       | `step(acc, v)`                                                                                                                 |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `"replace"` (default) | `v` an attrset: merge its keys into `acc` (or into `{}` if `acc` is not an attrset), each key stepping at `p.k`; otherwise `v` |
+| `"append"`            | `(acc or []) ++ v`; a non-list operand is refused by name                                                                      |
+| `"recursive"`         | `(acc or {}) // v`; a non-attrset operand is refused by name                                                                   |
+
+So "last layer providing the field wins" holds whatever the shape: a later scalar
+(or `null`, or a list) at `a.b` replaces the whole earlier subtree there, and later
+attrsets merge onto what that reset left. A `{}` contributes no keys, so it keeps
+the subtree it lands on (and is `{}` over a scalar). A default is the value layer 0
+starts from, so its shape never splits the layers after it, and a default a layer
+overrides is never forced (`defaults.a.b = throw "required"` is fine once a layer
+sets `a.b`).
+
+```nix
+record.foldNestedLayers { layers = [ { a.b.x = 1; } { a.b = 5; } { a.b.y = 9; } ]; }
+# → { a.b.y = 9; }   (the 5 resets a.b; the last layer merges onto it)
+```
+
+**The algebra.** The fold is a *right action* of the layer list on the value:
+`run(acc, xs ++ ys) = run(run(acc, xs), ys)`, with `{}` the identity layer at the
+root. So pre-folding any *prefix* and resuming from it — as `defaults`, or as the
+first layer — changes nothing. It is **not associative on layers**, unlike the flat
+strategies above: pre-folding a block that is not a prefix changes the result. In
+the example, `[ { a.b = 5; } { a.b.y = 9; } ]` pre-folds to `{ a.b.y = 9; }`, and
+`[ { a.b.x = 1; } { a.b.y = 9; } ]` gives `{ a.b = { x = 1; y = 9; }; }`, not
+`{ a.b.y = 9; }`: no single layer stands for a reset followed by a merge.
+
+**Refusals.** Each of these throws a catchable error naming the input, prefix
+`rec.foldNestedLayers:` — a mistyped `"append"`/`"recursive"` operand at a path
+(`strategy 'append' at 'a.b' needs a list, …`), a layer or `defaults` that is not an
+attrset, `layers` that is not a list, `strategies` that is not an attrset, and an
+unknown strategy (`unknown strategy '<a lambda>' at 'a.b'`, a non-string rendered by
+its type). `foldLayers` and `foldLayersTraced` render a non-string strategy the same
+way.
 
 **Keys are escaped attribute paths.** A flat key encodes the path `[s₁ … sₙ]` by
 escaping each segment as RFC 6901 (JSON Pointer) §3 does — `~` becomes `~0`, then
@@ -577,7 +616,7 @@ gen-algebra is fully pure — zero dependencies of any kind, not even nixpkgs `l
 
 ## Testing
 
-Tests live in `ci/` and run under nix-unit (via `gen-harness.lib.mkCi`). 148 test cases across 12 suites (`nix develop ./ci --command ci` ⇒ `148/148 successful`) (`either`, `intensional`, `intensional-cplus`, `purity`, `repl`, `rec-primitives`, `rec-derived`, `rec-row`, `rec-composition`, `rec-fold-layers`, `rec-fold-layers-traced`, `rec-nested-layers`), including the purity invariant that fails on any stray `lib.types` / `mkOption` / `evalModules` in the library source. Requires nix-unit.
+Tests live in `ci/` and run under nix-unit (via `gen-harness.lib.mkCi`). 164 test cases across 12 suites (`nix develop ./ci --command ci` ⇒ `164/164 successful`) (`either`, `intensional`, `intensional-cplus`, `purity`, `repl`, `rec-primitives`, `rec-derived`, `rec-row`, `rec-composition`, `rec-fold-layers`, `rec-fold-layers-traced`, `rec-nested-layers`), including the purity invariant that fails on any stray `lib.types` / `mkOption` / `evalModules` in the library source. Requires nix-unit. Cells whose `expr` must throw a named refusal live on the second output, `ci/tests-error.nix` (21 cells across 2 suites: `nix develop ./ci --command ci --tests-error`, or `nix-unit --flake ./ci#testsError`).
 
 ```bash
 # all suites

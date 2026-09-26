@@ -204,7 +204,7 @@ let
           else if strategy == "recursive" then
             builtins.foldl' (acc: l: acc // l.${name}) (defaults.${name} or { }) contributions
           else
-            throw "rec.foldLayers: unknown strategy '${strategy}' for field '${name}'";
+            throw "rec.foldLayers: unknown strategy '${renderStrategy strategy}' for field '${name}'";
       in
       builtins.listToAttrs (
         builtins.map (k: {
@@ -286,7 +286,7 @@ let
                   acc: e: builtins.foldl' (a2: x: if builtins.elem x a2 then a2 else a2 ++ [ x ]) acc e.layer.${name}
                 ) (defaults.${name} or [ ]) contribs
               else
-                throw "rec.foldLayersTraced: unknown strategy '${strategy}' for field '${name}'";
+                throw "rec.foldLayersTraced: unknown strategy '${renderStrategy strategy}' for field '${name}'";
             defaultEntry =
               if hasDefault then
                 [
@@ -403,7 +403,25 @@ let
         recursiveUpdate acc (setByPath segs flat.${key})
       ) { } (builtins.attrNames flat);
 
-    # foldLayers for nested attrsets: flatten → foldLayers → unflatten.
+    # foldLayers for nested attrsets, as a LEFT FOLD of one binary step: the value is
+    # `foldl' step {} ([ defaults ] ++ layers)`, defaults being the seed. At path p:
+    #   "append"    step(acc, v) = (acc or [ ]) ++ v          v a list, else refused by name
+    #   "recursive" step(acc, v) = (acc or { }) // v          v an attrset, else refused by name
+    #   "replace"   step(acc, v) = merge(acc if an attrset else { }, v)   v an attrset
+    #                            = v                                     otherwise
+    #   merge(a, v) = a // { k = step_{p.k}(a.k or absent, v.k) for each k in v }
+    # So the last layer providing a path wins whatever its shape: a non-attrset resets the
+    # path, later attrsets merge onto what the reset left, and `{}` contributes nothing (the
+    # identity). The fold is a right action of the layer list on the value, so pre-folding a
+    # PREFIX changes nothing; it is not associative on layers (pre-folding [{a.b=5} {a.b.y=9}]
+    # to {a.b.y=9} and resuming after {a.b.x=1} keeps x, which the whole fold resets).
+    #
+    # Evaluated per node rather than as that fold, whose accumulator is a thunk chain that
+    # overflows the stack at a few thousand layers: each path folds the values the layers give
+    # it, in order, and "replace" merges only those after the last non-attrset. That index is
+    # found scanning from the end, so a value the fold discards is never forced (a throwing
+    # default a layer overrides is the required-field idiom). `strategies` is keyed by
+    # flattenAttrs's encoding.
     foldNestedLayers =
       {
         strategies ? { },
@@ -411,18 +429,61 @@ let
         layers ? [ ],
       }:
       let
-        flatDefaults = self.flattenAttrs { inherit strategies; } defaults;
-        flatLayers = map (l: self.flattenAttrs { inherit strategies; } l) layers;
-        folded = self.foldLayers {
-          inherit strategies;
-          defaults = flatDefaults;
-          layers = flatLayers;
-        };
+        keyOf = segs: builtins.concatStringsSep "." (map escapeSegment segs);
+        need =
+          pred: what: s: key: v:
+          if pred v then
+            v
+          else
+            throw "rec.foldNestedLayers: strategy '${s}' at '${key}' needs ${what}, got a value of type ${builtins.typeOf v}";
+        # Children of a path, each resolved over the values present under it, in order.
+        resolve = segs: builtins.zipAttrsWith (k: node (segs ++ [ k ]));
+        node =
+          segs: xs:
+          let
+            key = keyOf segs;
+            strategy = strategies.${key} or "replace";
+            n = builtins.length xs;
+            # Index of the last non-attrset, -1 if none; nothing before it is forced.
+            r = builtins.foldl' (r: i: if r >= 0 || builtins.isAttrs (builtins.elemAt xs i) then r else i) (
+              -1
+            ) (builtins.genList (i: n - 1 - i) n);
+          in
+          if strategy == "append" then
+            builtins.foldl' (acc: v: acc ++ need builtins.isList "a list" strategy key v) [ ] xs
+          else if strategy == "recursive" then
+            builtins.foldl' (acc: v: acc // need builtins.isAttrs "an attrset" strategy key v) { } xs
+          else if strategy == "replace" then
+            if r == n - 1 then
+              builtins.elemAt xs r
+            else
+              resolve segs (builtins.genList (i: builtins.elemAt xs (r + 1 + i)) (n - r - 1))
+          else
+            throw "rec.foldNestedLayers: unknown strategy '${renderStrategy strategy}' at '${key}'";
+        root =
+          i: l:
+          if builtins.isAttrs l then
+            l
+          else
+            throw "rec.foldNestedLayers: ${
+              if i == 0 then "defaults" else "layer ${toString (i - 1)}"
+            } is a value of type ${builtins.typeOf l}, not an attrset";
+        all =
+          if !builtins.isList layers then
+            throw "rec.foldNestedLayers: layers is a value of type ${builtins.typeOf layers}, not a list"
+          else if !builtins.isAttrs strategies then
+            throw "rec.foldNestedLayers: strategies is a value of type ${builtins.typeOf strategies}, not an attrset"
+          else
+            [ defaults ] ++ layers;
       in
-      self.unflattenAttrs folded;
+      resolve [ ] (builtins.genList (i: root i (builtins.elemAt all i)) (builtins.length all));
   };
 
   # RFC 6901 §3 segment escape, "." standing in for "/": flattenAttrs's key encoding.
   escapeSegment = builtins.replaceStrings [ "~" "." ] [ "~0" "~1" ];
+
+  # A strategy as the unknown-strategy refusals print it. Interpolating a non-string aborts
+  # uncatchably (a lambda, a list, an int...), which would turn the refusal into a TypeError.
+  renderStrategy = s: if builtins.isString s then s else "<a ${builtins.typeOf s}>";
 in
 self

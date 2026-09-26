@@ -29,5 +29,8 @@
       name = "gen-algebra";
       testModules = ./tests;
       specialArgs = { inherit genAlgebra genIdentity; };
+      # Cells whose `expr` raises (named refusals) cannot sit in `flake.tests`: the batch
+      # asserter behind checks.default forces every expr there. Second output instead.
+      extraModules = [ ./tests-error.nix ];
     };
 }

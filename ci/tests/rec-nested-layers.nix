@@ -73,6 +73,17 @@ let
     "~.~"
     "a"
   ];
+
+  # Three layers at a.b whose suffix pre-folded differs from the whole (qif85 cells).
+  L0 = {
+    a.b = 5;
+  };
+  L1 = {
+    a.b.x = 1;
+  };
+  L2 = {
+    a.b.y = 9;
+  };
 in
 {
   flake.tests.rec-nested-layers = {
@@ -389,6 +400,248 @@ in
       };
       expected = {
         x = 1;
+      };
+    };
+
+    # Layer order over shape (den-hoag-qif85): the last layer providing a path wins whatever
+    # its shape. A non-attrset resets the path; later attrsets merge onto what the reset left.
+    test-fold-nested-scalar-over-subtree = {
+      expr = record.foldNestedLayers {
+        layers = [
+          { a.b.x = 1; }
+          { a.b = 5; }
+        ];
+      };
+      expected = {
+        a.b = 5;
+      };
+    };
+    test-fold-nested-null-over-subtree = {
+      expr = record.foldNestedLayers {
+        layers = [
+          { a.b.x = 1; }
+          { a.b = null; }
+        ];
+      };
+      expected = {
+        a.b = null;
+      };
+    };
+    test-fold-nested-three-layer-reset = {
+      expr = record.foldNestedLayers {
+        layers = [
+          { a.b.x = 1; }
+          { a.b = 5; }
+          { a.b.y = 9; }
+        ];
+      };
+      expected = {
+        a.b.y = 9;
+      };
+    };
+    test-fold-nested-scalar-over-default-subtree = {
+      expr = record.foldNestedLayers {
+        defaults.a.b.x = 1;
+        layers = [ { a.b = 5; } ];
+      };
+      expected = {
+        a.b = 5;
+      };
+    };
+    # The reset at a.b discards the items appended before it.
+    test-fold-nested-append-after-reset = {
+      expr = record.foldNestedLayers {
+        strategies."a.b.items" = "append";
+        layers = [
+          { a.b.items = [ 1 ]; }
+          { a.b = 5; }
+          { a.b.items = [ 2 ]; }
+        ];
+      };
+      expected = {
+        a.b.items = [ 2 ];
+      };
+    };
+
+    # Regression guards: a node-wholesale reading (the last value at any shape conflict wins
+    # verbatim) is not a fold of any step and fails these; the left fold passes them.
+    test-fold-nested-default-shape-does-not-split-layers = {
+      expr =
+        map
+          (
+            d:
+            record.foldNestedLayers {
+              defaults.a.b = d;
+              layers = [
+                { a.b.x = 1; }
+                { a.b.y = 2; }
+              ];
+            }
+          )
+          [
+            null
+            5
+          ];
+      expected = [
+        {
+          a.b = {
+            x = 1;
+            y = 2;
+          };
+        }
+        {
+          a.b = {
+            x = 1;
+            y = 2;
+          };
+        }
+      ];
+    };
+    test-fold-nested-earlier-scalar-does-not-split-later-layers = {
+      expr = record.foldNestedLayers {
+        layers = [
+          L0
+          L1
+          L2
+        ];
+      };
+      expected = {
+        a.b = {
+          x = 1;
+          y = 9;
+        };
+      };
+    };
+    # The action law: a pre-folded prefix, resumed as defaults or as a layer, changes nothing.
+    test-fold-nested-prefix-invariance = {
+      expr = {
+        asSeed =
+          record.foldNestedLayers {
+            defaults = record.foldNestedLayers {
+              layers = [
+                L0
+                L1
+              ];
+            };
+            layers = [ L2 ];
+          } == record.foldNestedLayers {
+            layers = [
+              L0
+              L1
+              L2
+            ];
+          };
+        asLayer =
+          record.foldNestedLayers {
+            layers = [
+              (record.foldNestedLayers {
+                layers = [
+                  L0
+                  L1
+                ];
+              })
+              L2
+            ];
+          } == record.foldNestedLayers {
+            layers = [
+              L0
+              L1
+              L2
+            ];
+          };
+      };
+      expected = {
+        asSeed = true;
+        asLayer = true;
+      };
+    };
+    test-fold-nested-empty-set-keeps-default = {
+      expr = record.foldNestedLayers {
+        defaults.logging.level = "info";
+        layers = [ { logging = { }; } ];
+      };
+      expected = {
+        logging.level = "info";
+      };
+    };
+    test-fold-nested-empty-set-keeps-subtree = {
+      expr = record.foldNestedLayers {
+        layers = [
+          { a.b.x = 1; }
+          { a.b = { }; }
+        ];
+      };
+      expected = {
+        a.b.x = 1;
+      };
+    };
+
+    # Laziness: a value the fold discards is never forced (the required-default idiom).
+    test-fold-nested-overridden-default-is-not-forced = {
+      expr = record.foldNestedLayers {
+        defaults.a.b = throw "a.b is required";
+        layers = [ { a.b = 5; } ];
+      };
+      expected = {
+        a.b = 5;
+      };
+    };
+    test-fold-nested-reset-layer-value-is-not-forced = {
+      expr = record.foldNestedLayers {
+        layers = [
+          { a.b = throw "unset"; }
+          { a.b = 5; }
+          { a.b.x = 1; }
+        ];
+      };
+      expected = {
+        a.b.x = 1;
+      };
+    };
+
+    # Controls: the same value before and after den-hoag-qif85.
+    test-fold-nested-subtree-over-scalar = {
+      expr = record.foldNestedLayers {
+        layers = [
+          { a.b = 5; }
+          { a.b.x = 1; }
+        ];
+      };
+      expected = {
+        a.b.x = 1;
+      };
+    };
+    test-fold-nested-scalar-over-empty-set = {
+      expr = record.foldNestedLayers {
+        layers = [
+          { a.b = { }; }
+          { a.b = 5; }
+        ];
+      };
+      expected = {
+        a.b = 5;
+      };
+    };
+    test-fold-nested-empty-set-over-scalar = {
+      expr = record.foldNestedLayers {
+        layers = [
+          { a.b = 5; }
+          { a.b = { }; }
+        ];
+      };
+      expected = {
+        a.b = { };
+      };
+    };
+    test-fold-nested-empty-root-layer = {
+      expr = record.foldNestedLayers {
+        layers = [
+          { a.b.x = 1; }
+          { }
+        ];
+      };
+      expected = {
+        a.b.x = 1;
       };
     };
   };
