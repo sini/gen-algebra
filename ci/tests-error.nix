@@ -185,6 +185,23 @@ in
         msg = "rec.foldNestedLayers: unknown strategy '<a lambda>' at 'a.b'";
       };
     };
+    test-unknown-strategy-defaults-only-refuses-by-name = {
+      expr =
+        assert ok record.foldNestedLayers {
+          strategies.q = "replace";
+          defaults.q = 1;
+          layers = [ ];
+        } { q = 1; };
+        record.foldNestedLayers {
+          strategies.q = "BOGUS";
+          defaults.q = 1;
+          layers = [ ];
+        };
+      expectedError = {
+        type = "ThrownError";
+        msg = "rec.foldNestedLayers: unknown strategy 'BOGUS' at 'q'";
+      };
+    };
   };
 
   flake.testsError.rec-fold-layers-refusals =
