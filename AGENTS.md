@@ -119,6 +119,19 @@ No `isRight` / `fromRight` / `bimap` — consumers test `? right` / `? left` dir
 | `identityOf` / `regimeTagOf` / `isExact` / `comparisonSubject`                | the identity-regime readers — a consumer that DECIDES dispatches on the tag and never reads `__mint.minted` raw                                                                                                                                   |
 | `preimageTagOf` / `componentsPreimage` / `sealedCollisionEq` / `sealedMarker` | a composite's per-component preimage tags (`minted`, `inert`, `undefined` at WHNF, `sealedMarker`), its tags and sealed subjects from one call, and the by-name refusal where two declarations mint one mark and differ only at sealed components |
 
+**`__` keys crossing the boundary** (R12 stated contracts; the census that reads these lines takes the
+first line of each):
+
+- `__mint` — writer `mkIntensional` (`lib/intensional.nix`), also written by gen-types (`lib/checkers.nix`) and gen-schema (`lib/entry-type.nix`, `lib/refined.nix`); reader `identityOf` (same file); read by gen-dispatch, gen-merge, gen-schema, gen-select and gen-types:
+  the identity regime as a TAGGED SUM, `{ minted = "<digest>"; }` or `{ unmintable = { ctor; reason; }; }`.
+  A reader dispatches on the tag through `identityOf` and never branches on `? __mint` and then reads
+  `.minted` raw. The mint itself is gen-identity's `hashIdentity`, injected; this library authors the
+  sum that carries its result. Two other libraries define their own `identityOf` over it
+  (gen-dispatch `lib/core/rule.nix`, and gen-types `lib/default.nix`, which adds an arm for foreign
+  option-type records); gen-select imports this one. The parity of those definitions is
+  `den-hoag-xxybl`'s. **Home defaulted, reversible** (`den-hoag-4kh.53.53` OQ1, arm A): re-opened if
+  `den-hoag-7gp66` OQ1 places the identity readers at gen-identity.
+
 ## The zero-inputs contract, and what it binds
 
 ★ **It binds `flake.nix` and `lib/`, and it does NOT bind `ci/`.** Written down because it was
