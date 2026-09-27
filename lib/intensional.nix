@@ -307,6 +307,11 @@ let
   # discharge CONDITIONALLY here rather than outright. The condition disappears entirely if builders
   # become first-order TERMS, at which point the coordinate is derived from the terms and nothing is
   # declared.
+  #
+  # Until that migration, the coordinate below discharges only CONDITIONALLY, on the declared
+  # `revision` holding its obligation: that makes the digest it feeds fit as a COMPARED decision
+  # predicate, never a MINTED key, so it must not be handed to gen-dispatch's `taggedHandle` while
+  # the condition stands.
   registryCoordOf = registry: {
     members = builtins.attrNames registry.members;
     inherit (registry) revision;
