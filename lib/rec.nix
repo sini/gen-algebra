@@ -113,8 +113,15 @@ let
     # Left-biased combination (⊕). Left's stacks go above right's stacks.
     # Label order: left's order first, then right-only labels.
     # O(n+m) via set-based dedup instead of linear scan.
-    # Two operands of one sort (P2, R7 (b)): one record, `combine { left; right; }`.
-    combine = { left, right, ... }: combine' left right;
+    # Two operands of one sort (P2, R7 (b)): one record, `combine { left; right; }`. The record is
+    # open (R5), and a missing field or a non-set is refused by name with a `throw`, so `tryEval`
+    # contains it (ADR-0025 item 1); a native `{ left, right, ... }` formal aborts on either.
+    combine =
+      args:
+      let
+        r = checkRequired "gen-algebra.record.combine" [ "left" "right" ] args;
+      in
+      builtins.seq r (combine' r.left r.right);
 
     # Smalltalk direction: delta(parent) ⊕ parent — delta wins
     mixin = delta: parent: combine' (delta parent) parent;
@@ -486,6 +493,21 @@ let
       __entries = entries;
       __order = allLabels;
     };
+
+  # gen-prelude's `checkRequired`, restated (this library takes no inputs): a record door refuses a
+  # non-set and a missing field by name, reading `<door>: … (in <construct>)`. Not exported.
+  checkRequired =
+    door: required: record:
+    let
+      quoted = builtins.concatStringsSep ", " (map (n: "'${n}'") required);
+      missing = builtins.filter (f: !(record ? ${f})) required;
+    in
+    if !builtins.isAttrs record then
+      throw "${door}: the argument must be an attrset, not a ${builtins.typeOf record} (required: ${quoted}) (in gen-algebra.checkRequired)"
+    else if missing != [ ] then
+      throw "${door}: required field '${builtins.head missing}' is missing (required: ${quoted}) (in gen-algebra.checkRequired)"
+    else
+      record;
 
   # RFC 6901 §3 segment escape, "." standing in for "/": flattenAttrs's key encoding.
   escapeSegment = builtins.replaceStrings [ "~" "." ] [ "~0" "~1" ];

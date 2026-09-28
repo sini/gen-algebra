@@ -14,13 +14,28 @@ let
   cmb = left: right: R.combine { inherit left right; };
 in
 {
-  # R7 (b): two operands of one sort are one record, and its fields are the door's formals.
-  flake.tests.rec-composition.test-combine-takes-one-record = {
-    expr = builtins.functionArgs R.combine;
-    expected = {
-      left = false;
-      right = false;
-    };
+  # R7 (b): two operands of one sort are one record, and a record missing one (absent, misspelt) or a
+  # stale positional call is refused CATCHABLY, at the door's WHNF. The messages are pinned by name
+  # in ../tests-error.nix.
+  flake.tests.rec-composition.test-combine-refuses-catchably = {
+    expr = map (v: !(builtins.tryEval (builtins.seq v true)).success) [
+      (R.combine { left = a; })
+      (R.combine {
+        left = a;
+        rihgt = b;
+      })
+      (R.combine a)
+      (R.combine {
+        left = a;
+        right = b;
+      })
+    ];
+    expected = [
+      true
+      true
+      true
+      false
+    ];
   };
 
   flake.tests.rec-composition.test-combine-left-wins = {

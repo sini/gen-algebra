@@ -207,4 +207,51 @@ in
   flake.testsError.rec-fold-layers-refusals =
     flatStrategyCells "foldLayers" { } (r: r)
     // flatStrategyCells "foldLayersTraced" { layerNames = [ "l0" ]; } (r: r.value);
+
+  # P2, R7 (b): `record.combine` takes one record, and a missing field (absent or misspelt) or a stale
+  # positional call is refused BY NAME, catchably. The live control: the well-formed record combines.
+  flake.testsError.rec-combine-refusals =
+    let
+      e = record.fromAttrs { x = 1; };
+      ctl = ok (args: record.labels (record.combine args)) {
+        left = e;
+        right = e;
+      } [ "x" ];
+      req = "\\(required: 'left', 'right'\\) \\(in gen-algebra\\.checkRequired\\)$";
+      missing = "^gen-algebra\\.record\\.combine: required field 'right' is missing ${req}";
+    in
+    {
+      test-combine-missing-field-refused = {
+        expr =
+          assert ctl;
+          record.combine { left = e; };
+        expectedError = {
+          type = "ThrownError";
+          msg = missing;
+        };
+      };
+      test-combine-misspelt-field-refused = {
+        expr =
+          assert ctl;
+          record.combine {
+            left = e;
+            rihgt = e;
+          };
+        expectedError = {
+          type = "ThrownError";
+          msg = missing;
+        };
+      };
+      test-combine-stale-positional-refused = {
+        # The retired shape `combine a b`: a record is a set, so its first operand is read as the
+        # door's record and refused for the field it lacks.
+        expr =
+          assert ctl;
+          record.combine e e;
+        expectedError = {
+          type = "ThrownError";
+          msg = "^gen-algebra\\.record\\.combine: required field 'left' is missing ${req}";
+        };
+      };
+    };
 }
