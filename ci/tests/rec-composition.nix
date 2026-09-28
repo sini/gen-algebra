@@ -10,25 +10,41 @@ let
     x = 10;
     z = 3;
   };
+  # `combine` takes one record (P2, R7 (b)); this binds it positionally for the nested cells.
+  cmb = left: right: R.combine { inherit left right; };
 in
 {
+  # R7 (b): two operands of one sort are one record, and its fields are the door's formals.
+  flake.tests.rec-composition.test-combine-takes-one-record = {
+    expr = builtins.functionArgs R.combine;
+    expected = {
+      left = false;
+      right = false;
+    };
+  };
+
   flake.tests.rec-composition.test-combine-left-wins = {
-    expr = R.select (R.combine a b) "x";
+    expr = R.select "x" (
+      R.combine {
+        left = a;
+        right = b;
+      }
+    );
     expected = 1;
   };
 
   flake.tests.rec-composition.test-combine-preserves-right = {
-    expr = R.has (R.combine a b) "z";
+    expr = R.has "z" (cmb a b);
     expected = true;
   };
 
   flake.tests.rec-composition.test-combine-stacks = {
-    expr = R.depth (R.combine a b) "x";
+    expr = R.depth "x" (cmb a b);
     expected = 2;
   };
 
   flake.tests.rec-composition.test-combine-left-order-first = {
-    expr = R.labels (R.combine a b);
+    expr = R.labels (cmb a b);
     expected = [
       "x"
       "y"
@@ -43,8 +59,8 @@ in
           x = 100;
           w = 4;
         };
-        left = R.combine (R.combine a b) c;
-        right = R.combine a (R.combine b c);
+        left = cmb (cmb a b) c;
+        right = cmb a (cmb b c);
       in
       R.emit left == R.emit right;
     expected = true;
@@ -57,10 +73,10 @@ in
           x = 100;
           w = 4;
         };
-        left = R.combine (R.combine a b) c;
-        right = R.combine a (R.combine b c);
+        left = cmb (cmb a b) c;
+        right = cmb a (cmb b c);
       in
-      R.depth left "x" == R.depth right "x";
+      R.depth "x" left == R.depth "x" right;
     expected = true;
   };
 
@@ -71,10 +87,10 @@ in
         delta =
           p:
           R.fromAttrs {
-            display = "${R.select p "display"}, degree";
+            display = "${R.select "display" p}, degree";
           };
       in
-      R.select (R.mixin delta parent) "display";
+      R.select "display" (R.mixin delta parent);
     expected = "name, degree";
   };
 
@@ -87,7 +103,7 @@ in
         };
         delta = _p: R.fromAttrs { display = "override"; };
       in
-      R.has (R.mixin delta parent) "extra";
+      R.has "extra" (R.mixin delta parent);
     expected = true;
   };
 
@@ -97,20 +113,20 @@ in
         prefix =
           inner:
           R.fromAttrs {
-            display = "prefix-${R.select inner "display"}";
+            display = "prefix-${R.select "display" inner}";
           };
         suffix = R.fromAttrs { display = "suffix"; };
       in
-      R.select (R.mixinBeta prefix suffix) "display";
+      R.select "display" (R.mixinBeta prefix suffix);
     expected = "prefix-suffix";
   };
 
   flake.tests.rec-composition.test-compose-associative = {
     expr =
       let
-        m1 = p: R.extend p "a" 1;
-        m2 = p: R.extend p "b" 2;
-        m3 = p: R.extend p "c" 3;
+        m1 = R.extend "a" 1;
+        m2 = R.extend "b" 2;
+        m3 = R.extend "c" 3;
         left = R.compose (R.compose m1 m2) m3;
         right = R.compose m1 (R.compose m2 m3);
         base = R.empty;
@@ -127,12 +143,12 @@ in
           y = 2;
         };
       in
-      R.restrict (R.extend r "z" 3) "z" == r;
+      R.restrict "z" (R.extend "z" 3 r) == r;
     expected = true;
   };
 
   flake.tests.rec-composition.test-select-after-extend = {
-    expr = R.select (R.extend R.empty "x" 42) "x";
+    expr = R.select "x" (R.extend "x" 42 R.empty);
     expected = 42;
   };
 
@@ -143,8 +159,8 @@ in
           x = 100;
           w = 4;
         };
-        left = R.labels (R.combine (R.combine a b) c);
-        right = R.labels (R.combine a (R.combine b c));
+        left = R.labels (cmb (cmb a b) c);
+        right = R.labels (cmb a (cmb b c));
       in
       left == right;
     expected = true;

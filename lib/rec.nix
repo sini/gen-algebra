@@ -6,8 +6,11 @@ let
       __order = [ ];
     };
 
+    # Subject last (P2, R7): every operation below takes its label operands first and the record it
+    # reads or transforms LAST, so `extend l v`, `select l`, `has l` … are partial applications that
+    # compose over records.
     extend =
-      r: l: v:
+      l: v: r:
       let
         existing = r.__entries.${l} or [ ];
         newOrder = if existing == [ ] then r.__order ++ [ l ] else r.__order;
@@ -20,14 +23,14 @@ let
       };
 
     select =
-      r: l:
+      l: r:
       if r.__entries ? ${l} && r.__entries.${l} != [ ] then
         builtins.head r.__entries.${l}
       else
         throw "rec: no field '${l}'";
 
     restrict =
-      r: l:
+      l: r:
       if !(r.__entries ? ${l}) then
         r
       else
@@ -47,14 +50,14 @@ let
             __order = r.__order;
           };
 
-    has = r: l: r.__entries ? ${l} && r.__entries.${l} != [ ];
+    has = l: r: r.__entries ? ${l} && r.__entries.${l} != [ ];
 
-    depth = r: l: if r.__entries ? ${l} then builtins.length r.__entries.${l} else 0;
+    depth = l: r: if r.__entries ? ${l} then builtins.length r.__entries.${l} else 0;
 
     emit = r: builtins.mapAttrs (_: builtins.head) r.__entries;
 
     emitAll =
-      r: fullLabels:
+      fullLabels: r:
       let
         isFull = l: builtins.elem l fullLabels;
       in
@@ -71,7 +74,7 @@ let
       };
 
     update =
-      r: l: v:
+      l: v: r:
       if !(r.__entries ? ${l}) || r.__entries.${l} == [ ] then
         throw "rec: no field '${l}' to update"
       else
@@ -83,12 +86,12 @@ let
         };
 
     upsert =
-      r: l: v:
-      self.extend (self.restrict r l) l v;
+      l: v: r:
+      self.extend l v (self.restrict l r);
 
     rename =
-      r: old: new:
-      self.extend (self.restrict r old) new (self.select r old);
+      old: new: r:
+      self.extend new (self.select old r) (self.restrict old r);
 
     labels = r: r.__order;
 
@@ -110,37 +113,11 @@ let
     # Left-biased combination (⊕). Left's stacks go above right's stacks.
     # Label order: left's order first, then right-only labels.
     # O(n+m) via set-based dedup instead of linear scan.
-    combine =
-      a: b:
-      let
-        aSet = builtins.listToAttrs (
-          builtins.map (l: {
-            name = l;
-            value = true;
-          }) a.__order
-        );
-        allLabels = a.__order ++ builtins.filter (l: !(aSet ? ${l})) b.__order;
-        mergeStacks =
-          l:
-          let
-            aStack = a.__entries.${l} or [ ];
-            bStack = b.__entries.${l} or [ ];
-          in
-          aStack ++ bStack;
-        entries = builtins.listToAttrs (
-          builtins.map (l: {
-            name = l;
-            value = mergeStacks l;
-          }) allLabels
-        );
-      in
-      {
-        __entries = entries;
-        __order = allLabels;
-      };
+    # Two operands of one sort (P2, R7 (b)): one record, `combine { left; right; }`.
+    combine = { left, right, ... }: combine' left right;
 
     # Smalltalk direction: delta(parent) ⊕ parent — delta wins
-    mixin = delta: parent: self.combine (delta parent) parent;
+    mixin = delta: parent: combine' (delta parent) parent;
 
     # Instantiated Beta inheritance (Bracha 1990 §2.2) with inner = ∅.
     # The general form C'(inner) = P'(Δ'(inner) ⊕ inner) ⊕ Δ'(inner) is
@@ -151,7 +128,7 @@ let
       let
         inner = self.empty;
       in
-      self.combine (prefix (self.combine suffix inner)) suffix;
+      combine' (prefix (combine' suffix inner)) suffix;
 
     # Mixin composition: M1 ⋆ M2 = fun(i) M1(M2(i) ⊕ i) ⊕ M2(i)
     compose =
@@ -159,14 +136,14 @@ let
       let
         m2i = m2 i;
       in
-      self.combine (m1 (self.combine m2i i)) m2i;
+      combine' (m1 (combine' m2i i)) m2i;
 
-    satisfies = r: required: builtins.all (l: self.has r l) required;
+    satisfies = required: r: builtins.all (l: self.has l r) required;
 
     assertSatisfies =
-      r: required:
+      required: r:
       let
-        missing = builtins.filter (l: !(self.has r l)) required;
+        missing = builtins.filter (l: !(self.has l r)) required;
       in
       if missing == [ ] then
         r
@@ -478,6 +455,37 @@ let
       in
       resolve [ ] (builtins.genList (i: root i (builtins.elemAt all i)) (builtins.length all));
   };
+
+  # `combine`'s positional core: the published door takes one record, and this file's own
+  # callers (mixin, mixinBeta, compose) call the core.
+  combine' =
+    a: b:
+    let
+      aSet = builtins.listToAttrs (
+        builtins.map (l: {
+          name = l;
+          value = true;
+        }) a.__order
+      );
+      allLabels = a.__order ++ builtins.filter (l: !(aSet ? ${l})) b.__order;
+      mergeStacks =
+        l:
+        let
+          aStack = a.__entries.${l} or [ ];
+          bStack = b.__entries.${l} or [ ];
+        in
+        aStack ++ bStack;
+      entries = builtins.listToAttrs (
+        builtins.map (l: {
+          name = l;
+          value = mergeStacks l;
+        }) allLabels
+      );
+    in
+    {
+      __entries = entries;
+      __order = allLabels;
+    };
 
   # RFC 6901 §3 segment escape, "." standing in for "/": flattenAttrs's key encoding.
   escapeSegment = builtins.replaceStrings [ "~" "." ] [ "~0" "~1" ];

@@ -41,18 +41,18 @@ Twelve top-level names: two namespaces (`record`, `either`), the `sealedMarker` 
 | Export     | Signature                                                            |
 | ---------- | -------------------------------------------------------------------- |
 | `empty`    | `record` (a value)                                                   |
-| `extend`   | `record -> label -> value -> record` (pushes onto the label's stack) |
-| `select`   | `record -> label -> value` (head; throws if absent)                  |
-| `restrict` | `record -> label -> record` (pops head; no-op if absent)             |
-| `has`      | `record -> label -> bool`                                            |
-| `depth`    | `record -> label -> int` (0 if absent)                               |
+| `extend`   | `label -> value -> record -> record` (pushes onto the label's stack) |
+| `select`   | `label -> record -> value` (head; throws if absent)                  |
+| `restrict` | `label -> record -> record` (pops head; no-op if absent)             |
+| `has`      | `label -> record -> bool`                                            |
+| `depth`    | `label -> record -> int` (0 if absent)                               |
 
 **Record, conversion and display**
 
 | Export        | Signature                                                                          |
 | ------------- | ---------------------------------------------------------------------------------- |
 | `emit`        | `record -> attrset` (heads only)                                                   |
-| `emitAll`     | `record -> [label] -> attrset` (full stacks for listed labels, heads for the rest) |
+| `emitAll`     | `[label] -> record -> attrset` (full stacks for listed labels, heads for the rest) |
 | `fromAttrs`   | `attrset -> record` (single-element stacks)                                        |
 | `labels`      | `record -> [label]`                                                                |
 | `show`        | `record -> string` (full stacks, via `toJSON`)                                     |
@@ -62,25 +62,25 @@ Twelve top-level names: two namespaces (`record`, `either`), the `sealedMarker` 
 
 | Export   | Signature                                                              |
 | -------- | ---------------------------------------------------------------------- |
-| `update` | `record -> label -> value -> record` (replaces head; throws if absent) |
-| `upsert` | `record -> label -> value -> record` (insert-or-replace)               |
-| `rename` | `record -> old -> new -> record` (throws if `old` absent)              |
+| `update` | `label -> value -> record -> record` (replaces head; throws if absent) |
+| `upsert` | `label -> value -> record -> record` (insert-or-replace)               |
+| `rename` | `old -> new -> record -> record` (throws if `old` absent)              |
 
 **Record, composition** (Bracha §2-4)
 
-| Export      | Signature                                                                                       |
-| ----------- | ----------------------------------------------------------------------------------------------- |
-| `combine`   | `record -> record -> record` (left-biased ⊕; left's stacks above right's)                       |
-| `mixin`     | `(record -> record) -> record -> record` (Smalltalk direction: `combine (delta parent) parent`) |
-| `mixinBeta` | `(record -> record) -> record -> record` (Beta leaf form, `inner = empty`)                      |
-| `compose`   | `(record -> record) -> (record -> record) -> record -> record` (⋆)                              |
+| Export      | Signature                                                                                         |
+| ----------- | ------------------------------------------------------------------------------------------------- |
+| `combine`   | `{ left; right; } -> record` (left-biased ⊕; left's stacks above right's; R7 (b), native formals) |
+| `mixin`     | `(record -> record) -> record -> record` (Smalltalk direction: `combine (delta parent) parent`)   |
+| `mixinBeta` | `(record -> record) -> record -> record` (Beta leaf form, `inner = empty`)                        |
+| `compose`   | `(record -> record) -> (record -> record) -> record -> record` (⋆)                                |
 
 **Record, row compatibility**
 
 | Export            | Signature                                                     |
 | ----------------- | ------------------------------------------------------------- |
-| `satisfies`       | `record -> [label] -> bool`                                   |
-| `assertSatisfies` | `record -> [label] -> record` (throws listing missing labels) |
+| `satisfies`       | `[label] -> record -> bool`                                   |
+| `assertSatisfies` | `[label] -> record -> record` (throws listing missing labels) |
 
 **Record, layer folding** — operates on **plain attrsets**, not `record` values
 
@@ -157,8 +157,8 @@ either side could reach on its own.
 | Give a function a comparable identity                                                          | `mkIntensional hashIdentity registry "<ctor>" args` — a bare lambda carries no identity                       |
 | Compare two functions for identity                                                             | `conservativeEq` — regime-dispatched; nothing to fold into a name, the coordinate is `(registry, ctor, args)` |
 | Build a record whose labels can shadow                                                         | `record.fromAttrs` then `record.extend`                                                                       |
-| Read the current binding / the shadowed one                                                    | `record.select r l` / `record.select (record.restrict r l) l`                                                 |
-| Ship a record to ordinary Nix                                                                  | `record.emit` (heads) or `record.emitAll r [ labels ]` (stacks preserved)                                     |
+| Read the current binding / the shadowed one                                                    | `record.select l r` / `record.select l (record.restrict l r)`                                                 |
+| Ship a record to ordinary Nix                                                                  | `record.emit` (heads) or `record.emitAll [ labels ] r` (stacks preserved)                                     |
 | Compose two records or two mixins                                                              | `record.combine` / `record.mixin` / `record.mixinBeta` / `record.compose`                                     |
 | Assert a record carries required labels                                                        | `record.satisfies` (bool) / `record.assertSatisfies` (throws)                                                 |
 | Merge priority tiers of plain attrsets                                                         | `record.foldLayers { strategies; defaults; layers; }`                                                         |
@@ -172,7 +172,7 @@ either side could reach on its own.
 
 <!-- gen-citations:begin -->
 
-Each row verified in this run by evaluating against `a = import ./lib` from the repo root (`r = a.record`, `e = a.either`; `base = r.fromAttrs { level = "info"; }`, `env = r.extend base "level" "warn"`). Errors marked *(stderr)* were captured from the evaluator's message because `builtins.tryEval` does not catch that error class.
+Each row verified in this run by evaluating against `a = import ./lib` from the repo root (`r = a.record`, `e = a.either`; `base = r.fromAttrs { level = "info"; }`, `env = r.extend "level" "warn" base`). Errors marked *(stderr)* were captured from the evaluator's message because `builtins.tryEval` does not catch that error class.
 
 | Trap                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Evidence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -220,7 +220,7 @@ Each row verified in this run by evaluating against `a = import ./lib` from the 
 **Implements**
 
 - **Leijen (2005), *Extensible Records with Scoped Labels*** — extension/selection/restriction (§2), scoped labels via shadow stacks (§2.1-3.2), row compatibility (§3.1), in `lib/rec.nix`.
-- **Bracha & Cook (1990), *Mixin-Based Inheritance*** — left-biased combination (§2.1 ⊕), Smalltalk-direction mixin (§2.1), Beta-direction mixin (§2.2), associative composition ⋆ (§4), in `lib/rec.nix:113-162`. `mixinBeta` is annotated in-code as the leaf form with `inner = ∅`, the general form being `compose` (`lib/rec.nix:145-154`).
+- **Bracha & Cook (1990), *Mixin-Based Inheritance*** — left-biased combination (§2.1 ⊕), Smalltalk-direction mixin (§2.1), Beta-direction mixin (§2.2), associative composition ⋆ (§4), in `lib/rec.nix:113-139` (the positional core `combine'` sits in the file's outer `let`). `mixinBeta` is annotated in-code as the leaf form with `inner = ∅`, the general form being `compose` (`lib/rec.nix:122-139`).
 
 **Cited in the body, not in the Foundations table**
 

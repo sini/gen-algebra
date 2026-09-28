@@ -265,7 +265,7 @@ Records use an attrset-with-shadow-stack representation for O(1) select:
 ```nix
 # Internal: { __entries = { label = [value-stack]; }; __order = [labels]; }
 r = record.fromAttrs { port = 8080; hostname = "localhost"; };
-record.select r "port"      # → 8080
+record.select "port" r      # → 8080
 record.emit r                # → { port = 8080; hostname = "localhost"; }
 ```
 
@@ -273,31 +273,35 @@ record.emit r                # → { port = 8080; hostname = "localhost"; }
 
 ```nix
 record.empty                         # empty record
-record.extend r "x" 42              # push value onto label's stack
-record.select r "x"                  # head of stack (throws if absent)
-record.restrict r "x"               # pop head (no-op if absent)
-record.has r "x"                     # bool: label present?
-record.depth r "x"                   # stack depth (0 if absent)
+record.extend "x" 42 r              # push value onto label's stack
+record.select "x" r                  # head of stack (throws if absent)
+record.restrict "x" r               # pop head (no-op if absent)
+record.has "x" r                     # bool: label present?
+record.depth "x" r                   # stack depth (0 if absent)
 ```
+
+Every operation takes its label operands first and the record **last** (the uniform grammar's R7:
+the subject is the last argument), so a partial application is a record transformer:
+`map (record.select "port") rs`, `record.compose (record.extend "a" 1) (record.extend "b" 2)`.
 
 #### Scoped labels
 
 ```nix
 # Duplicate labels form a stack — restriction exposes previous values
 base = record.fromAttrs { level = "info"; };
-env  = record.extend base "level" "warn";
-user = record.extend env "level" "debug";
+env  = record.extend "level" "warn" base;
+user = record.extend "level" "debug" env;
 
-record.select user "level"                                      # → "debug"
-record.select (record.restrict user "level") "level"            # → "warn"
-record.select (record.restrict (record.restrict user "level") "level") "level"  # → "info"
+record.select "level" user                                      # → "debug"
+record.select "level" (record.restrict "level" user)            # → "warn"
+record.select "level" (record.restrict "level" (record.restrict "level" user))  # → "info"
 ```
 
 #### Conversion
 
 ```nix
 record.emit r                  # → plain attrset (heads only)
-record.emitAll r [ "validators" ]  # → full stacks for listed labels, heads for rest
+record.emitAll [ "validators" ] r  # → full stacks for listed labels, heads for rest
 record.fromAttrs { a = 1; }   # → record with single-element stacks
 record.show r                  # → "{ x = [2, 1]; y = [3] }" (full stacks)
 record.showCompact r           # → "{ x = 2; y = 3 }" (heads only)
@@ -306,17 +310,18 @@ record.showCompact r           # → "{ x = 2; y = 3 }" (heads only)
 #### Derived operations
 
 ```nix
-record.update r "x" 99        # replace head (throws if absent — strict)
-record.upsert r "x" 99        # insert-or-update (no error)
-record.rename r "old" "new"   # move label
+record.update "x" 99 r        # replace head (throws if absent — strict)
+record.upsert "x" 99 r        # insert-or-update (no error)
+record.rename "old" "new" r   # move label
 record.labels r                # label names in insertion order
 ```
 
 #### Composition (Bracha §2-4)
 
 ```nix
-# Left-biased combination (⊕): a's values shadow b's
-record.combine a b
+# Left-biased combination (⊕): left's values shadow right's. Two operands of one sort, so one
+# record (R7 (b)).
+record.combine { left = a; right = b; }
 
 # Smalltalk direction: delta wins over parent
 record.mixin delta parent      # → combine (delta parent) parent
@@ -331,8 +336,8 @@ record.compose m1 m2           # → fun(i) m1(m2(i) ⊕ i) ⊕ m2(i)
 #### Row compatibility
 
 ```nix
-record.satisfies r [ "port" "hostname" ]      # → bool
-record.assertSatisfies r [ "port" "hostname" ] # → r or throws with missing fields
+record.satisfies [ "port" "hostname" ] r       # → bool
+record.assertSatisfies [ "port" "hostname" ] r # → r or throws with missing fields
 ```
 
 #### `foldLayers`

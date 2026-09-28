@@ -12,7 +12,7 @@ in
   };
 
   flake.tests.rec-primitives.test-extend-new-label = {
-    expr = R.extend R.empty "x" 42;
+    expr = R.extend "x" 42 R.empty;
     expected = {
       __entries = {
         x = [ 42 ];
@@ -22,7 +22,7 @@ in
   };
 
   flake.tests.rec-primitives.test-extend-existing-label-pushes-stack = {
-    expr = R.extend (R.extend R.empty "x" 1) "x" 2;
+    expr = R.extend "x" 2 (R.extend "x" 1 R.empty);
     expected = {
       __entries = {
         x = [
@@ -35,7 +35,7 @@ in
   };
 
   flake.tests.rec-primitives.test-extend-preserves-order = {
-    expr = (R.extend (R.extend R.empty "a" 1) "b" 2).__order;
+    expr = (R.extend "b" 2 (R.extend "a" 1 R.empty)).__order;
     expected = [
       "a"
       "b"
@@ -43,12 +43,12 @@ in
   };
 
   flake.tests.rec-primitives.test-select-returns-head = {
-    expr = R.select (R.extend (R.extend R.empty "x" 1) "x" 2) "x";
+    expr = R.select "x" (R.extend "x" 2 (R.extend "x" 1 R.empty));
     expected = 2;
   };
 
   flake.tests.rec-primitives.test-select-throws-on-absent = {
-    expr = builtins.tryEval (R.select R.empty "x");
+    expr = builtins.tryEval (R.select "x" R.empty);
     expected = {
       success = false;
       value = false;
@@ -56,7 +56,7 @@ in
   };
 
   flake.tests.rec-primitives.test-restrict-pops-stack = {
-    expr = R.restrict (R.extend (R.extend R.empty "x" 1) "x" 2) "x";
+    expr = R.restrict "x" (R.extend "x" 2 (R.extend "x" 1 R.empty));
     expected = {
       __entries = {
         x = [ 1 ];
@@ -66,7 +66,7 @@ in
   };
 
   flake.tests.rec-primitives.test-restrict-removes-label-when-stack-empty = {
-    expr = R.restrict (R.extend R.empty "x" 1) "x";
+    expr = R.restrict "x" (R.extend "x" 1 R.empty);
     expected = {
       __entries = { };
       __order = [ ];
@@ -74,36 +74,36 @@ in
   };
 
   flake.tests.rec-primitives.test-restrict-noop-on-absent = {
-    expr = R.restrict R.empty "x";
+    expr = R.restrict "x" R.empty;
     expected = R.empty;
   };
 
   flake.tests.rec-primitives.test-scoped-label-roundtrip = {
     expr =
       let
-        r = R.extend (R.extend R.empty "x" 1) "x" 2;
+        r = R.extend "x" 2 (R.extend "x" 1 R.empty);
       in
-      R.select (R.restrict r "x") "x";
+      R.select "x" (R.restrict "x" r);
     expected = 1;
   };
 
   flake.tests.rec-primitives.test-has-true = {
-    expr = R.has (R.extend R.empty "x" 1) "x";
+    expr = R.has "x" (R.extend "x" 1 R.empty);
     expected = true;
   };
 
   flake.tests.rec-primitives.test-has-false = {
-    expr = R.has R.empty "x";
+    expr = R.has "x" R.empty;
     expected = false;
   };
 
   flake.tests.rec-primitives.test-depth-with-values = {
-    expr = R.depth (R.extend (R.extend R.empty "x" 1) "x" 2) "x";
+    expr = R.depth "x" (R.extend "x" 2 (R.extend "x" 1 R.empty));
     expected = 2;
   };
 
   flake.tests.rec-primitives.test-depth-absent = {
-    expr = R.depth R.empty "x";
+    expr = R.depth "x" R.empty;
     expected = 0;
   };
 }
