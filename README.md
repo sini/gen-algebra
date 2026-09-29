@@ -621,7 +621,7 @@ gen-algebra is fully pure — zero dependencies of any kind, not even nixpkgs `l
 
 ## Testing
 
-Tests live in `ci/` and run under nix-unit (via `gen-harness.lib.mkCi`). 164 test cases across 12 suites (`nix develop ./ci --command ci` ⇒ `164/164 successful`) (`either`, `intensional`, `intensional-cplus`, `purity`, `repl`, `rec-primitives`, `rec-derived`, `rec-row`, `rec-composition`, `rec-fold-layers`, `rec-fold-layers-traced`, `rec-nested-layers`), including the purity invariant that fails on any stray `lib.types` / `mkOption` / `evalModules` in the library source. Requires nix-unit. Cells whose `expr` must throw a named refusal live on the second output, `ci/tests-error.nix` (21 cells across 2 suites: `nix develop ./ci --command ci --tests-error`, or `nix-unit --flake ./ci#testsError`).
+Tests live in `ci/` and run under nix-unit (via `gen-harness.lib.mkCi`). 168 test cases across 13 suites (`nix develop ./ci --command ci` ⇒ `168/168 successful`) (`either`, `intensional`, `intensional-cplus`, `purity`, `repl`, `rec-primitives`, `rec-derived`, `rec-row`, `rec-composition`, `rec-fold-layers`, `rec-fold-layers-traced`, `rec-nested-layers`, `gen-ci-examples`), including the purity invariant that fails on any stray `lib.types` / `mkOption` / `evalModules` in the library source. `gen-ci-examples` is gen-harness's examples guard (declared in `ci/tests/examples.nix`, `gen.ci.examples`): it holds that `examples/` directory names equal the declared names, and that every declared example forces under `deepSeq`. Requires nix-unit. Cells whose `expr` must throw a named refusal live on the second output, `ci/tests-error.nix` (21 cells across 2 suites: `nix develop ./ci --command ci --tests-error`, or `nix-unit --flake ./ci#testsError`).
 
 ```bash
 # all suites
