@@ -183,13 +183,16 @@ in
   # genuinely present rather than genuinely absent, so the reads are shown to carry this
   # repository's source and not a constant. A count-preserving swap, one member's bytes replaced by
   # another file's, leaves the manifest cell GREEN and reds this one.
+  # `flake.nix` dropped out of this list at den-hoag-ydm94 R7: the root's `builtins.deepSeq (…
+  # typeOf …)` forcing construction was its only live `builtins` token, and retiring that
+  # construction (superseded by gen-harness's `checks.root-surface`) leaves this file's stripped
+  # code with no live token of its own.
   flake.tests.purity.test-scan-reads-are-live = {
     expr = liveReads;
     expected = [
       "lib/either.nix"
       "lib/intensional.nix"
       "lib/rec.nix"
-      "flake.nix"
     ];
   };
 
