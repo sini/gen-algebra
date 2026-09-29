@@ -22,14 +22,14 @@
             level = "info";
             port = 8080;
           };
-          env = R.extend base "level" "warn";
-          user = R.extend env "level" "debug";
+          env = R.extend "level" "warn" base;
+          user = R.extend "level" "debug" env;
         in
         {
-          current = R.select user "level"; # → "debug"
-          previous = R.select (R.restrict user "level") "level"; # → "warn"
-          original = R.select (R.restrict (R.restrict user "level") "level") "level"; # → "info"
-          depth = R.depth user "level"; # → 3
+          current = R.select "level" user; # → "debug"
+          previous = R.select "level" (R.restrict "level" user); # → "warn"
+          original = R.select "level" (R.restrict "level" (R.restrict "level" user)); # → "info"
+          depth = R.depth "level" user; # → 3
           emitted = R.emit user; # → { level = "debug"; port = 8080; }
         };
 
@@ -48,33 +48,37 @@
           };
 
           # Left-biased combination: overlay wins on port
-          combined = R.combine overlay base;
+          combined = R.combine {
+            left = overlay;
+            right = base;
+          };
 
           # Smalltalk mixin: delta receives parent, delta's values win
           delta =
             parent:
             R.fromAttrs {
-              metricsPort = (R.select parent "port") + 1000;
+              metricsPort = (R.select "port" parent) + 1000;
               debug = false;
             };
           mixed = R.mixin delta base;
 
           # emitAll: full stacks for listed labels, heads for rest
-          stacked = R.combine (R.fromAttrs { tags = [ "prod" ]; }) (
-            R.fromAttrs {
+          stacked = R.combine {
+            left = R.fromAttrs { tags = [ "prod" ]; };
+            right = R.fromAttrs {
               tags = [ "base" ];
               port = 80;
-            }
-          );
+            };
+          };
         in
         {
-          combinedPort = R.select combined "port"; # → 9090
-          combinedHostname = R.select combined "hostname"; # → "localhost"
-          combinedHasDebug = R.has combined "debug"; # → true
-          mixedMetrics = R.select mixed "metricsPort"; # → 9080
-          mixedDebug = R.select mixed "debug"; # → false (delta wins)
+          combinedPort = R.select "port" combined; # → 9090
+          combinedHostname = R.select "hostname" combined; # → "localhost"
+          combinedHasDebug = R.has "debug" combined; # → true
+          mixedMetrics = R.select "metricsPort" mixed; # → 9080
+          mixedDebug = R.select "debug" mixed; # → false (delta wins)
           labelOrder = R.labels combined; # → [ "debug" "port" "hostname" ]
-          fullStacks = R.emitAll stacked [ "tags" ]; # → { tags = [ ["prod"] ["base"] ]; port = 80; }
+          fullStacks = R.emitAll [ "tags" ] stacked; # → { tags = [ ["prod"] ["base"] ]; port = 80; }
         };
 
       # Record algebra: row compatibility (Leijen §3.1)
@@ -88,15 +92,15 @@
           };
         in
         {
-          hasRequired = R.satisfies r [
+          hasRequired = R.satisfies [
             "port"
             "hostname"
-          ]; # → true
-          missingField = R.satisfies r [
+          ] r; # → true
+          missingField = R.satisfies [
             "port"
             "nonexistent"
-          ]; # → false
-          emptyReqs = R.satisfies r [ ]; # → true
+          ] r; # → false
+          emptyReqs = R.satisfies [ ] r; # → true
         };
 
       # Either: pipe (short-circuit) and collectErrors (accumulate)
