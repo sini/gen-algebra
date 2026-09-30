@@ -260,7 +260,7 @@ let
       in
       throw "${site}: two declarations of '${a.name}' mint one identity and differ, compared as values, only at sealed component(s) ${
         builtins.concatStringsSep ", " (map (k: "'${k}'") differing)
-      }; a sealed component has no identity (ADR-0034): migrate it to a first-order term, a registered constructor over inert arguments, so that it mints";
+      }; a sealed component has no identity, because identity is minted from inert structure alone: migrate it to a first-order term, a registered constructor over inert arguments, so that it mints";
 
   # ── the encoder ──
   #
