@@ -2,15 +2,14 @@
   description = "gen-algebra demo: record algebra, either";
 
   inputs = {
-    gen-algebra.url = "github:sini/gen-algebra";
     nixpkgs.url = "https://channels.nixos.org/nixos-unstable/nixexprs.tar.xz";
   };
 
   outputs =
-    { nixpkgs, ... }@inputs:
+    { nixpkgs, ... }:
     let
       lib = nixpkgs.lib;
-      g = inputs.gen-algebra.lib;
+      g = import ../.. { };
     in
     {
       # Record algebra: scoped labels (Leijen 2005)

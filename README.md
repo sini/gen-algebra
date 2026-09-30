@@ -593,12 +593,12 @@ either.chain (x: if x > 0 then either.right (x * 10) else either.left "neg") (ei
 
 ## Demo
 
-See [`examples/demo/`](examples/demo/) for a self-contained example exercising the record algebra and either combinators.
+See [`examples/demo/`](examples/demo/) for a self-contained example exercising the record algebra and either combinators. It binds the library as `import ../.. { }`, so it evaluates against the checkout it ships in.
 
 ```bash
 cd examples/demo
-nix eval --override-input gen-algebra ../.. .#scopedLabels
-nix eval --override-input gen-algebra ../.. .#eitherDemo
+nix eval .#scopedLabels
+nix eval .#eitherDemo
 ```
 
 ## Architecture

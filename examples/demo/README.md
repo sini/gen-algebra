@@ -3,8 +3,10 @@
 Standalone flake exercising the pure `gen-algebra.lib` primitives: the scoped
 record algebra and the `either` combinators.
 
-`gen-algebra` exposes a single `.lib` value (the old callable
-`gen-algebra { inherit lib; }` form is obsolete):
+The demo binds the library from the checkout it ships in, through the standalone
+entry `g = import ../.. { };`, so it evaluates against that tree and its lock
+pins nothing of `gen-algebra` itself. A flake of your own consumes the single
+`.lib` value instead:
 
 ```nix
 inputs.gen-algebra.url = "github:sini/gen-algebra";
