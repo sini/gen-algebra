@@ -271,9 +271,9 @@ let
           builtins.attrNames a.sealed
         );
       in
-      throw "${site}: two declarations of '${a.name}' mint one identity and differ, compared as values, only at sealed component(s) ${
+      throw "${site}: two declarations of '${a.name}' mint one identity and are unequal only at sealed component(s) ${
         builtins.concatStringsSep ", " (map (k: "'${k}'") differing)
-      }; a sealed component has no identity, because identity is minted from inert structure alone: migrate it to a first-order term, a registered constructor over inert arguments, so that it mints";
+      }: a sealed component is compared by its seal, the whole value under Nix `==`, where two separately built functions are never equal, so two separate constructions are refused even where the values they compute are equal; a sealed component has no identity, because identity is minted from inert structure alone: migrate it to a first-order term, a registered constructor over inert arguments, so that it mints";
 
   # ── the encoder ──
   #

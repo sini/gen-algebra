@@ -288,8 +288,23 @@ in
           sealedCollisionEq "s" (subject shared (x: x)) (subject shared (y: y));
         expectedError = {
           type = "ThrownError";
-          msg = "only at sealed component\\(s\\) 'g'; ";
+          msg = "only at sealed component\\(s\\) 'g': ";
         };
       };
+      # Two separate constructions of one declaration hold equal values, and are still refused: the
+      # text says the seal is the whole value under `==`, never that the values differ.
+      test-two-constructions-with-equal-values-refused-by-name =
+        let
+          construct = _: subject shared (x: x);
+        in
+        {
+          expr =
+            assert ctl;
+            sealedCollisionEq "s" (construct 1) (construct 2);
+          expectedError = {
+            type = "ThrownError";
+            msg = "^s: two declarations of 'thing' mint one identity and are unequal only at sealed component\\(s\\) 'g': a sealed component is compared by its seal, the whole value under Nix `==`, where two separately built functions are never equal, so two separate constructions are refused even where the values they compute are equal; a sealed component has no identity, because identity is minted from inert structure alone: migrate it to a first-order term, a registered constructor over inert arguments, so that it mints$";
+          };
+        };
     };
 }
