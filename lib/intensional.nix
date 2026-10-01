@@ -189,7 +189,7 @@ let
         c:
         c
         // {
-          key = builtins.concatStringsSep "." (
+          name = builtins.concatStringsSep "." (
             map (builtins.replaceStrings [ "~" "." ] [ "~0" "~1" ]) c.path
           );
           tag = if c.sealed or false then sealedMarker else preimageTagOf hashIdentity c.value;
@@ -197,7 +197,7 @@ let
       ) components;
       tags = builtins.listToAttrs (
         map (c: {
-          name = c.key;
+          inherit (c) name;
           value = c.tag;
         }) tagged
       );
@@ -210,12 +210,18 @@ let
       {
         inherit tags;
         sealed = builtins.listToAttrs (
-          map (c: {
-            name = c.key;
-            # `comparisonSubject` only where there is an `__id` to drop: `removeAttrs` allocates, and
-            # an unchanged value keeps the pointer `==` short-circuits on.
-            value = if builtins.isAttrs c.value && c.value ? __id then comparisonSubject c.value else c.value;
-          }) (builtins.filter (c: c.tag == sealedMarker) tagged)
+          # `comparisonSubject` only where there is an `__id` to drop: `removeAttrs` allocates. An
+          # unchanged value is handed over as the component record itself (`listToAttrs` reads its
+          # `name` and `value`), because `//` carries attribute slots while any `value = …` binding
+          # is a fresh thunk. The slot is the pointer `==` short-circuits on, and the only identity
+          # a bare function has: upstream Nix compares two copies of one lambda unequal, Lix equal.
+          map (
+            c:
+            if builtins.isAttrs c.value && c.value ? __id then
+              c // { value = comparisonSubject c.value; }
+            else
+              c
+          ) (builtins.filter (c: c.tag == sealedMarker) tagged)
         );
       };
 
@@ -254,7 +260,11 @@ let
       true
     else
       let
-        differing = builtins.filter (k: !(b.sealed ? ${k}) || !(eq a.sealed.${k} b.sealed.${k})) (
+        # Each component is compared inside a one-key slice (`intersectAttrs` carries the slot): a
+        # bare `a.sealed.${k}` argument is a fresh thunk, so upstream Nix would name a component
+        # holding one shared lambda as differing, and Lix would not. A key `b` lacks slices to `{ }`.
+        slice = k: builtins.intersectAttrs { ${k} = null; };
+        differing = builtins.filter (k: !(eq (slice k a.sealed) (slice k b.sealed))) (
           builtins.attrNames a.sealed
         );
       in

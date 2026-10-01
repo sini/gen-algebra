@@ -177,5 +177,35 @@ in
         sameMarkOtherSubject = false;
       };
     };
+    # A bare function's only identity is its value slot, so `sealed` hands the component's own slot
+    # over: one shared lambda sealed twice decides `true` on every evaluator (upstream Nix and
+    # Determinate refused it while the copy was a fresh thunk; Lix did not), and a second lambda of
+    # the same text is still refused.
+    test-sealed-bare-function-keeps-its-slot = {
+      expr =
+        let
+          sealedOf =
+            f:
+            (componentsPreimage genIdentity.hashIdentity [
+              {
+                path = [ "f" ];
+                value = f;
+                sealed = true;
+              }
+            ]).sealed;
+          lambda = x: x;
+          otherLambda = x: x;
+        in
+        {
+          shared = sealedCollisionEq "s" (subject "m" (sealedOf lambda)) (subject "m" (sealedOf lambda));
+          other = decides (
+            sealedCollisionEq "s" (subject "m" (sealedOf lambda)) (subject "m" (sealedOf otherLambda))
+          );
+        };
+      expected = {
+        shared = true;
+        other = false;
+      };
+    };
   };
 }

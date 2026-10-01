@@ -6,7 +6,7 @@
 # Every cell pins a refusal BY NAME (a ThrownError and its message prefix), so an input that
 # regresses to an uncatchable TypeError or to a silently accepted value reds here. Each carries a
 # live control, wrapped in tryEval so the control cannot itself throw the pinned message.
-{ genAlgebra, ... }:
+{ genAlgebra, genIdentity, ... }:
 let
   inherit (genAlgebra) record;
 
@@ -251,6 +251,44 @@ in
         expectedError = {
           type = "ThrownError";
           msg = "^gen-algebra\\.record\\.combine: required field 'left' is missing ${req}";
+        };
+      };
+    };
+
+  # `sealedCollisionEq`'s refusal names the components that differ, and a component holding one
+  # shared lambda on both sides is not among them, on every evaluator. The live control: the pair
+  # that shares every component decides `true`.
+  flake.testsError.intensional-cplus-refusals =
+    let
+      inherit (genAlgebra) componentsPreimage sealedCollisionEq;
+      subject = f: g: {
+        name = "thing";
+        mark = "m";
+        sealed =
+          (componentsPreimage genIdentity.hashIdentity [
+            {
+              path = [ "f" ];
+              value = f;
+              sealed = true;
+            }
+            {
+              path = [ "g" ];
+              value = g;
+              sealed = true;
+            }
+          ]).sealed;
+      };
+      shared = x: x;
+      ctl = ok (_: sealedCollisionEq "s" (subject shared shared) (subject shared shared)) null true;
+    in
+    {
+      test-collision-names-only-the-differing-component = {
+        expr =
+          assert ctl;
+          sealedCollisionEq "s" (subject shared (x: x)) (subject shared (y: y));
+        expectedError = {
+          type = "ThrownError";
+          msg = "only at sealed component\\(s\\) 'g'; ";
         };
       };
     };
