@@ -213,8 +213,11 @@ let
           # `comparisonSubject` only where there is an `__id` to drop: `removeAttrs` allocates. An
           # unchanged value is handed over as the component record itself (`listToAttrs` reads its
           # `name` and `value`), because `//` carries attribute slots while any `value = …` binding
-          # is a fresh thunk. The slot is the pointer `==` short-circuits on, and the only identity
-          # a bare function has: upstream Nix compares two copies of one lambda unequal, Lix equal.
+          # is a fresh thunk. The copy keeps the value SLOT so that Nix `==` can apply its documented
+          # value-identity optimisation (Nix manual, "Equality" under Language Values, on `==` for
+          # functions); a function has no identity of its own (ADR-0034). Fail-closed: an evaluator
+          # that drops the optimisation compares two shared-lambda components unequal, and the
+          # result is a refusal by name, never a false admit.
           map (
             c:
             if builtins.isAttrs c.value && c.value ? __id then
