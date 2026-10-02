@@ -171,6 +171,7 @@ in
       "lib/either.nix"
       "lib/intensional.nix"
       "lib/rec.nix"
+      "lib/term.nix"
       "flake.nix"
       "default.nix"
     ];
@@ -193,6 +194,7 @@ in
       "lib/either.nix"
       "lib/intensional.nix"
       "lib/rec.nix"
+      "lib/term.nix"
     ];
   };
 

@@ -6,6 +6,9 @@ in
 {
   inherit either record;
 
+  # The first-order term algebra (lib/term.nix); a function of the mint, as `mkIntensional` is.
+  term = import ./term.nix;
+
   # `conservativeEq` is Palmer's own term for this relation (§2.3, §5.3, §8): "intensional"
   # qualifies the FUNCTION, never the equality. The old export name read as a licence to compare
   # intension alone, which is exactly the half of Fig. 5's conjunction the relation used to ship.
