@@ -799,19 +799,9 @@ let
       scan "any" true t.items
     else if f == "If" then
       let
-        c = recurse t.cond;
+        d = decideIf env t;
       in
-      if isRefusal c then
-        c
-      else if !(builtins.isBool c.right) then
-        refuse "former-operand-type" {
-          former = "If";
-          position = "cond";
-          expected = "bool";
-          got = builtins.typeOf c.right;
-        }
-      else
-        recurse (if c.right then t.then_ else t.else_)
+      if isRefusal d then d else recurse d.right
     else if f == "Attrs" then
       traverseAttrs t.attrs (_: v: if isTerm v then recurse v else ok v)
     else if f == "List" then
@@ -935,6 +925,55 @@ let
         else
           ok b.${a};
 
+  # An `If`'s chosen branch, as a term: its condition resolved and checked to be a bool. Shared by
+  # `resolveTerm` and `resolveFields`, so the condition's semantics are stated once.
+  decideIf =
+    env: t:
+    let
+      c = resolveTerm env t.cond;
+    in
+    if isRefusal c then
+      c
+    else if !(builtins.isBool c.right) then
+      refuse "former-operand-type" {
+        former = "If";
+        position = "cond";
+        expected = "bool";
+        got = builtins.typeOf c.right;
+      }
+    else
+      ok (if c.right then t.then_ else t.else_);
+
+  # `resolveTerm`'s value with each field resolved where it is READ (ADR-0010 §4(a) clause 3, van
+  # Antwerpen 2018 §2.5: a delayed substitution is applied to a field once it is accessed). `Attrs`,
+  # `List` and a decided `If` are descended structurally; every other former is a leaf and resolves
+  # whole through `resolveTerm`. A refusal is not returned: it is handed to `onLeft path left` at the
+  # read of its field, `path` the attribute names and list indices from the root. `resolveTerm` keeps
+  # its total `Either`, so a caller reading `right` still reads a fully resolved value.
+  resolveFields =
+    env: onLeft: t:
+    let
+      go =
+        p: x:
+        if isRefusal x then
+          onLeft p x.left
+        else if isTerm x && x.__bodyTerm == "Attrs" then
+          builtins.mapAttrs (k: v: if isTerm v then go (p ++ [ k ]) v else v) x.attrs
+        else if isTerm x && x.__bodyTerm == "List" then
+          builtins.genList (i: go (p ++ [ i ]) (builtins.elemAt x.items i)) (builtins.length x.items)
+        else if isTerm x && x.__bodyTerm == "If" then
+          let
+            d = decideIf env x;
+          in
+          if isRefusal d then onLeft p d.left else go p d.right
+        else
+          let
+            r = resolveTerm env x;
+          in
+          if isRefusal r then onLeft p r.left else r.right;
+    in
+    go [ ] t;
+
   # ── the registration identifier `ref` carries (unifying spec §2.8): `builtins.toJSON` over a FIXED
   # field domain. toJSON alone is not injective: a record carrying `outPath` or `__toString` encodes as
   # that string, so two records differing beside it encode equal, and a path is copied into the store.
@@ -1021,6 +1060,7 @@ in
     checkTerm
     checkClause
     resolveTerm
+    resolveFields
     refId
     ;
 }

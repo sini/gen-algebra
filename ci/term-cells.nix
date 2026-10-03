@@ -640,6 +640,104 @@ in
       }).left.witness.got or "<admitted>";
     expected = "path";
   };
+  # ── resolveFields (den-hoag-bgeum; ADR-0010 §4(a) clause 3): each field resolved at its own read ──
+  # A refusing member is handed to `onLeft` with its path; its siblings resolve. resolveTerm over the
+  # same body refuses whole (the control).
+  resolve-fields-per-field = {
+    expr = {
+      fields =
+        T.resolveFields { context.host = "h1"; }
+          (p: l: {
+            refused = p;
+            inherit (l) code;
+          })
+          (
+            term.attrs {
+              fine = term.lit "fine";
+              bad = term.readCtx "host" [ "deep" ];
+              xs = term.list [
+                (term.readCtx "host" [ ])
+                (term.readCtx "user" [ ])
+              ];
+              pick = term.ifThenElse (term.has "host") (term.attrs { a = term.readCtx "host" [ ]; }) (
+                term.lit null
+              );
+              raw = 1;
+            }
+          );
+      whole = code (
+        resolveTerm { context.host = "h1"; } (term.attrs { bad = term.readCtx "host" [ "deep" ]; })
+      );
+    };
+    expected = {
+      fields = {
+        fine = "fine";
+        bad = {
+          refused = [ "bad" ];
+          code = "projection-path-missing";
+        };
+        xs = [
+          "h1"
+          {
+            refused = [
+              "xs"
+              1
+            ];
+            code = "read-absent";
+          }
+        ];
+        pick.a = "h1";
+        raw = 1;
+      };
+      whole = "projection-path-missing";
+    };
+  };
+  # An `If` whose condition is not a bool refuses through resolveTerm's own check (decideIf, shared).
+  resolve-fields-if-condition-checked = {
+    expr = map (f: f (term.ifThenElse (term.readCtx "host" [ ]) (term.lit 1) (term.lit 2))) [
+      (T.resolveFields { context.host = "h1"; } (_: l: l.witness))
+      (b: (resolveTerm { context.host = "h1"; } b).left.witness)
+    ];
+    expected = [
+      {
+        former = "If";
+        position = "cond";
+        expected = "bool";
+        got = "string";
+      }
+      {
+        former = "If";
+        position = "cond";
+        expected = "bool";
+        got = "string";
+      }
+    ];
+  };
+  # ADR-0010 §4(a) clause 4 is VACUOUS because no former binds a coordinate: every former hands the
+  # same env to its children, so substitutions along a projection path never shadow. A former that
+  # binds a coordinate RE-OPENS clause 4 (reverse-order normalisation, van Antwerpen 2018 (N-All)).
+  known-formers-bind-no-coordinate = {
+    expr = T.knownFormers;
+    expected = [
+      "Lit"
+      "ReadFrom"
+      "ReadCtx"
+      "If"
+      "Attrs"
+      "List"
+      "Concat"
+      "PathJoin"
+      "Apply"
+      "Default"
+      "Ref"
+      "Has"
+      "Eq"
+      "All"
+      "Any"
+      "Always"
+      "Not"
+    ];
+  };
   codes-carried-from-bodyterm = {
     expr = map code [
       (resolveTerm { } (term.readFrom "t" [ ]))
