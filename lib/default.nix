@@ -23,6 +23,7 @@ in
     regimeTagOf
     isExact
     comparisonSubject
+    hasDeclaredSubject
     sealedMarker
     preimageTagOf
     componentsPreimage

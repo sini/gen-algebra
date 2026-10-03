@@ -19,7 +19,7 @@ let
     revision = "r1";
     members.k = a: v: v == a;
   };
-  minted = its "k" 1;
+  registered = its "k" 1;
   subject = mark: sealed: {
     name = "thing";
     inherit mark sealed;
@@ -28,13 +28,29 @@ let
     f = x: x;
   };
   decides = e: (builtins.tryEval e).success;
+  sealedAt = path: value: {
+    inherit path value;
+    sealed = true;
+  };
+  # a composite over components, as a door hands it to `sealedCollisionEq`
+  composite =
+    cs:
+    let
+      p = componentsPreimage genIdentity.hashIdentity cs;
+    in
+    {
+      name = "thing";
+      mark = genIdentity.hashIdentity "c" [ "tags" ] (_: p.tags);
+      inherit (p) tags sealed;
+    };
 in
 {
   flake.tests.intensional-cplus = {
     # Every shape a component can take, each to its own tag.
     test-preimage-tag-covers-every-shape = {
       expr = {
-        mintedIsItsDigest = tag minted == { minted = minted.__mint.minted; };
+        # a registered construction declares a compared subject and mints nothing (den-hoag-hhki8)
+        registeredIsSealed = tag registered;
         unmintable = tag { __mint.unmintable.ctor = "c"; };
         unmigrated = tag {
           name = "n";
@@ -55,7 +71,7 @@ in
         partial = tag { a = throw "no value"; };
       };
       expected = {
-        mintedIsItsDigest = true;
+        registeredIsSealed = sealedMarker;
         unmintable = sealedMarker;
         unmigrated = sealedMarker;
         lambda = sealedMarker;
@@ -175,6 +191,97 @@ in
         distinctMarks = false;
         sameMarkSameSubject = true;
         sameMarkOtherSubject = false;
+      };
+    };
+    # A registered construction enters a composite as a compared component, `{ compared = <its
+    # declared subject>; }`, and decides by that subject: twins `true`, a different argument or
+    # revision `false` (the evidence clause), never a refusal.
+    test-registered-component-decides-by-its-subject = {
+      expr =
+        let
+          r2 = mkIntensional genIdentity.hashIdentity {
+            revision = "r2";
+            members.k = a: v: v == a;
+          };
+          one = v: composite [ (sealedAt [ "check" ] v) ];
+        in
+        {
+          entry = builtins.attrNames (one (its "k" 1)).sealed.check;
+          twins = sealedCollisionEq "s" (one (its "k" 1)) (one (its "k" 1));
+          otherArgument = sealedCollisionEq "s" (one (its "k" 1)) (one (its "k" 2));
+          otherRevision = sealedCollisionEq "s" (one (its "k" 1)) (one (r2 "k" 1));
+        };
+      expected = {
+        entry = [ "compared" ];
+        twins = true;
+        otherArgument = false;
+        otherRevision = false;
+      };
+    };
+    # The evidence clause reads a compared subject's inequality as evidence ONLY when the subject is
+    # inert on both sides (ADR-0034's regimes): a registered construction whose `args` hold a lambda,
+    # built twice, is refused by name, never decided `false`; so is a differing bare lambda.
+    test-evidence-needs-an-inert-subject = {
+      expr =
+        let
+          one = v: composite [ (sealedAt [ "check" ] v) ];
+          fn1 = x: x;
+          fn2 = x: x;
+        in
+        {
+          lambdaArgsTwin = decides (
+            sealedCollisionEq "s" (one (its "k" { f = x: x; })) (one (its "k" { f = x: x; }))
+          );
+          lambdaArgsOneBinding = sealedCollisionEq "s" (one (its "k" { f = fn1; })) (
+            one (its "k" { f = fn1; })
+          );
+          inertArgsDiffer = sealedCollisionEq "s" (one (its "k" { lo = 1; })) (one (its "k" { lo = 2; }));
+          bareLambdaDiffers = decides (sealedCollisionEq "s" (one fn1) (one fn2));
+        };
+      expected = {
+        lambdaArgsTwin = false;
+        lambdaArgsOneBinding = true;
+        inertArgsDiffer = false;
+        bareLambdaDiffers = false;
+      };
+    };
+    # PROPAGATION: a minted component carrying a non-empty `__sealed` enters by its mark and hands its
+    # `__sealed` to the parent under its path, so two parents over children that share a mark but
+    # seal different registered terms decide `false`, and over twins `true`.
+    test-sealed-subjects-propagate-to-the-parent = {
+      expr =
+        let
+          child =
+            v:
+            let
+              c = composite [ (sealedAt [ "check" ] v) ];
+            in
+            {
+              __mint.minted = c.mark;
+              __sealed = c.sealed;
+            };
+          parent =
+            v:
+            composite [
+              {
+                path = [ "elem" ];
+                value = child v;
+              }
+            ];
+        in
+        {
+          childMarksAgree = (child (its "k" 1)).__mint.minted == (child (its "k" 2)).__mint.minted;
+          handedOver = builtins.attrNames (parent (its "k" 1)).sealed;
+          tagIsTheMark = (parent (its "k" 1)).tags.elem ? minted;
+          different = sealedCollisionEq "s" (parent (its "k" 1)) (parent (its "k" 2));
+          twins = sealedCollisionEq "s" (parent (its "k" 1)) (parent (its "k" 1));
+        };
+      expected = {
+        childMarksAgree = true;
+        handedOver = [ "elem" ];
+        tagIsTheMark = true;
+        different = false;
+        twins = true;
       };
     };
     # A bare function's only identity is its value slot, so `sealed` hands the component's own slot

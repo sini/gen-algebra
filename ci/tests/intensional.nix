@@ -206,29 +206,49 @@ in
     };
   };
 
-  ## Cost — the mint is lazy, and demanding it forces.
+  ## Cost — nothing is minted, and comparing forces the subject.
 
-  # An intensional value nobody compares hashes nothing: constructing one whose `args` carry a
-  # throwing thunk succeeds, and reading its `name` and calling it both succeed. Forcing the mint is
-  # what reaches the thunk — so the cost is paid by the consumer that DEMANDS an identity, and a
-  # lazily-failing leaf fails at mint time rather than at first read.
-  flake.tests.intensional.test-mint-is-lazy-and-forces-when-demanded = {
+  # A registered construction is COMPARED, never minted (den-hoag-hhki8): it carries no digest, so
+  # constructing one whose `args` carry a throwing thunk succeeds, and reading its `name` and calling
+  # it both succeed. Its regime is the compared one, with no exact key; deciding about it compares its
+  # declared subject, which is what reaches the thunk.
+  flake.tests.intensional.test-registered-value-is-compared-never-minted = {
     expr =
       let
         v = mk "addN" {
           n = 1;
           rotten = throw "leaf";
         };
+        i = genAlgebra.identityOf v;
       in
       {
         constructing = admits v.name;
         callable = admits (v 5);
-        demandingTheMintForces = refuses v.__mint.minted;
+        noMint = v.__mint ? minted;
+        exact = genAlgebra.isExact i;
+        regime = genAlgebra.regimeTagOf i;
+        subject = builtins.attrNames v.__mint.unmintable.subject;
+        comparingForces = refuses (
+          conservativeEq v (
+            mk "addN" {
+              n = 1;
+              rotten = throw "leaf";
+            }
+          )
+        );
       };
     expected = {
       constructing = true;
       callable = true;
-      demandingTheMintForces = true;
+      noMint = false;
+      exact = false;
+      regime = "s";
+      subject = [
+        "args"
+        "ctor"
+        "registry"
+      ];
+      comparingForces = true;
     };
   };
 

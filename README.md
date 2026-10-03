@@ -124,10 +124,20 @@ fn = mk "addN" { n = 1; };
 fn 5           # → 6 (callable via __functor)
 fn.name        # → "addN" (the program point, DERIVED from the constructor)
 fn.closure     # → { n = 1; } (the reified argument value — it IS `args`)
-fn.__mint      # → { minted = "its:…"; } (lazy: an unread identity hashes nothing)
+fn.__mint      # → { unmintable = { ctor = "addN"; reason = "…"; subject = { registry; ctor; args; }; }; }
 ```
 
-**The mint is injected.** `hashIdentity` is the substrate's one minting authority and it lives in
+**A registered construction is compared, never minted.** Its registry coordinate discharges only on
+the declared `revision`, so a digest over it would be a decision predicate and never a key: the value
+carries no digest and declares its comparison subject instead (the registry coordinate, the
+constructor and the inert arguments). `identityOf` therefore finds no exact identity (`isExact` is
+`false`, so no key site keys on it), `comparisonSubject` answers the declared subject, and
+`conservativeEq` decides two constructions of one term `true` and a different argument, member set or
+revision `false`. The honest-mistake residue stays: two registries with the same members and revision
+and different builder bodies decide `true`, which is the declared `revision`'s obligation.
+
+**The mint is injected.** The encoder takes `hashIdentity` and computes nothing with it (above);
+`preimageTagOf` and `componentsPreimage` mint with it. It is the substrate's one minting authority and it lives in
 `gen-identity`, a dependency-free leaf. It was gen-schema's, downstream of gen-algebra, and
 importing it would have closed a flake dependency cycle — which is why the injection exists and why
 the authority became a leaf. Taking it as a
@@ -246,11 +256,19 @@ componentsPreimage hashIdentity [
 comparison reads, from one call, so the two cannot describe different planes. A duplicate path,
 a non-string segment or a non-boolean `sealed` is refused by name.
 
+A registered construction enters the sealed map as `{ compared = <its declared subject>; }`, and a
+minted component that itself carries a non-empty `__sealed` (a type or kind over a sealed component)
+enters by its mark and hands its `__sealed` to the parent under its path, so the parent's mark never
+decides on its own what the child's mark was blind to.
+
 `sealedCollisionEq site a b` over `{ name; mark; sealed; }` decides `false` on distinct marks and
-`true` on equal marks with `==` sealed subjects. Equal marks with unequal subjects are two
-declarations the mark cannot tell apart, and they are **refused by name**, listing the sealed
-components that differ, rather than merged. Two separately built lambdas are unequal, so two
-constructions of one sealed declaration refuse: the same allocation residue as `conservativeEq`.
+`true` on equal marks with `==` sealed subjects. Equal marks with unequal subjects decide `false` when
+every differing leaf is a `compared` entry whose subject is inert on both sides (a bounded walk under
+`tryEval`): two different registered constructions, whose inequality is evidence of two
+constructions. Every other unequal pair is two declarations the mark cannot tell apart, and it is
+**refused by name**, listing the sealed components that differ, rather than merged. Two separately
+built lambdas are unequal, so two constructions of one sealed declaration refuse: the same allocation
+residue as `conservativeEq`, and so does a registered construction whose `args` hold a lambda.
 
 ### Record Algebra
 

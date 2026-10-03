@@ -22,10 +22,11 @@
 #
 # ★ THE MINT IS INJECTED, AND THE INJECTION IS LOAD-BEARING. `hashIdentity` is the substrate's
 # single minting authority and it lives downstream of this library, so importing it would close a
-# flake dependency cycle. Taking it as a CONSTRUCTOR PARAMETER mints the value inside the eval doing
-# the constructing — the consumer's own — so the identity is OWNED rather than borrowed and no
-# second minting authority is introduced. gen-algebra keeps its zero-dependency property: nothing is
-# imported here, the authority arrives as an argument.
+# flake dependency cycle. Taking it as a PARAMETER mints inside the eval doing the constructing — the
+# consumer's own — so the identity is OWNED rather than borrowed and no second minting authority is
+# introduced. gen-algebra keeps its zero-dependency property: nothing is imported here, the authority
+# arrives as an argument. The encoder below takes it and mints nothing (its values are compared, see
+# `__mint` there); `preimageTagOf` and `componentsPreimage` mint with it.
 let
   # ── the identity regime ──
   #
@@ -47,14 +48,11 @@ let
   # agreeing. This library's own key site, the `search` runner's continuation dedup, was retired
   # under ADR-0008 §1 (den-hoag-b7u1v); the discipline and its obligations stay with the tag.
   #
-  # ★ THAT CONSOLIDATION IS REPO-LOCAL, AND CLAIMING MORE WOULD OVERSTATE IT. Measured across
-  # `gen-*/lib`: `identityOf` has FOUR independent definitions — this one, gen-select's, gen-types'
-  # and gen-dispatch's — with `comparisonSubject` and `conservativeEq` at three apiece. gen-types is
-  # the sharpest counterexample, being a leaf that cannot import this file without closing the very
-  # dependency cycle the injected mint exists to avoid. So what holds is "one author WITHIN
-  # gen-algebra", not across the ecosystem, and the copies are a live divergence risk rather than a
-  # solved problem. Relocating the minting authority to a leaf is what would dissolve the constraint
-  # keeping them apart.
+  # ★ THAT CONSOLIDATION IS REPO-LOCAL, AND CLAIMING MORE WOULD OVERSTATE IT. gen-types and
+  # gen-dispatch keep definitions of their own; gen-types takes this library as an input (the mint is
+  # the gen-identity leaf, so the edge closes no cycle) and builds its per-component identity on
+  # `componentsPreimage` and `sealedCollisionEq` below, while its `identityOf` keeps the arms only a
+  # type record has (a rewritten `check`, a foreign record).
   identityOf =
     v:
     if v ? __mint && v.__mint ? minted then
@@ -99,6 +97,11 @@ let
   # preserves the evaluator's cell fast path and is a byte-for-byte no-op on a value carrying no
   # `__id`, so this excludes the accessor without emptying the relation.
   #
+  # ★ A DECLARED SUBJECT IS THE SUBJECT. A value carrying `__mint.unmintable.subject` (the encoder
+  # below) names what its comparison compares, so that subject is answered instead of the record:
+  # the record holds `fn`, a lambda rebuilt per construction, and comparing it would separate two
+  # constructions of one term on an allocation fact.
+  #
   # ★ WHY EXCLUDING `__id` IS SUFFICIENT AND NOT ARBITRARY. It is the only OTHER refusal-valued
   # accessor a compared value can carry, because `__mint.minted` is shielded by the tagged sum's own
   # shape: the minted and sealed arms live under DIFFERENT KEY NAMES, and Nix `==` decides on the
@@ -106,7 +109,16 @@ let
   # nothing forces there either. The one path that does force a mint is a minted-against-minted
   # comparison, and that arm never reaches here: it compares digests, which is a genuine DEMAND for
   # an identity, where a catchable named refusal is the correct outcome rather than a hazard.
-  comparisonSubject = v: removeAttrs v [ "__id" ];
+  hasDeclaredSubject =
+    v:
+    builtins.isAttrs v
+    && v ? __mint
+    && builtins.isAttrs v.__mint
+    && v.__mint ? unmintable
+    && builtins.isAttrs v.__mint.unmintable
+    && v.__mint.unmintable ? subject;
+  comparisonSubject =
+    v: if hasDeclaredSubject v then v.__mint.unmintable.subject else removeAttrs v [ "__id" ];
 
   # ── per-component preimage tags (c+), den-hoag-markof-partial-preimage-znfjq ──
   #
@@ -166,9 +178,19 @@ let
   # the value a `==` decision compares — the reified value minus its `__id` accessor
   # (`comparisonSubject`). A composite mints over `tags`; a door comparing two composites hands
   # `sealed` to `sealedCollisionEq`. ONE call yields both, so the two cannot read different planes.
+  #
+  # Two more entries, each what keeps a mark from deciding more than its preimage holds:
+  #   · a DECLARED subject (a registered construction, `mkIntensional`) enters as `{ compared =
+  #     <subject>; }`, the entry `sealedCollisionEq`'s evidence clause reads;
+  #   · PROPAGATION: a minted component that itself carries a non-empty `__sealed` (a type or a kind
+  #     over a sealed component) enters by its mark AND hands its `__sealed` over under its path.
+  #     Its mark is blind to what it sealed, so without this a parent over `listOf (typedef R1)` and
+  #     one over `listOf (typedef R9)` would share a mark and an empty sealed map and decide `true`.
   componentsPreimage =
     hashIdentity: components0:
     let
+      propagates =
+        c: c.tag ? minted && builtins.isAttrs (c.value.__sealed or null) && c.value.__sealed != { };
       # An honest caller's shape mistake is refused by name, never an uncatchable missing attribute.
       components =
         if
@@ -220,11 +242,14 @@ let
           # result is a refusal by name, never a false admit.
           map (
             c:
-            if builtins.isAttrs c.value && c.value ? __id then
+            if hasDeclaredSubject c.value then
+              c // { value.compared = comparisonSubject c.value; }
+            else if builtins.isAttrs c.value && c.value ? __id then
               c // { value = comparisonSubject c.value; }
             else
               c
           ) (builtins.filter (c: c.tag == sealedMarker) tagged)
+          ++ map (c: c // { value = c.value.__sealed; }) (builtins.filter propagates tagged)
         );
       };
 
@@ -237,6 +262,48 @@ let
   # so a sealed twin built twice is refused: the sound direction, and `conservativeEq`'s residue.
   # A subject with a throwing member can make `==` throw before it reaches a differing one, so
   # each `==` runs under `tryEval` and a throw counts as unequal: the refusal is by name either way.
+  #
+  # ★ THE EVIDENCE CLAUSE. An unequal pair whose every differing leaf is a DECLARED subject
+  # (`{ compared = <subject>; }`, `componentsPreimage`) with an INERT subject on both sides decides
+  # `false`; every other unequal pair is refused as above. The ground is ADR-0034's regimes: a
+  # COMPARED component is a decision predicate, decisions only, so the inequality of two inert
+  # subjects is evidence of two constructions; a sealed lambda's inequality under `==` is an
+  # allocation fact and evidence of nothing, and its collapse "is replaced by a refusal". A declared
+  # subject is inert only by its author's say-so (its `args` may hold a lambda), so inertness is
+  # TESTED, by a bounded walk under `tryEval`, and a subject that fails it is refused. Equality is
+  # still the one `==` over the whole subject; the per-leaf reading only classifies an inequality,
+  # and runs only on the unequal path of an equal-mark pair.
+  inertDepth = 64;
+  inertWalk =
+    d: v:
+    if d == 0 || builtins.isFunction v || builtins.isPath v then
+      false
+    else if builtins.isList v then
+      builtins.all (inertWalk (d - 1)) v
+    else if builtins.isAttrs v then
+      (v.type or null) != "derivation" && builtins.all (inertWalk (d - 1)) (builtins.attrValues v)
+    else
+      true;
+  isInert =
+    v:
+    let
+      r = builtins.tryEval (inertWalk inertDepth v);
+    in
+    r.success && r.value;
+  isCompared = v: builtins.isAttrs v && builtins.attrNames v == [ "compared" ];
+  isEvidence =
+    eq: x: y:
+    if isCompared x && isCompared y then
+      isInert x.compared && isInert y.compared
+    else if builtins.isAttrs x && builtins.isAttrs y && !(isCompared x) && !(isCompared y) then
+      let
+        slice = k: builtins.intersectAttrs { ${k} = null; };
+      in
+      builtins.all (
+        k: eq (slice k x) (slice k y) || (x ? ${k} && y ? ${k} && isEvidence eq x.${k} y.${k})
+      ) (builtins.attrNames (x // y))
+    else
+      false;
   sealedCollisionEq =
     site: a: b:
     let
@@ -261,6 +328,8 @@ let
       false
     else if eq a.sealed b.sealed then
       true
+    else if isEvidence eq a.sealed b.sealed then
+      false
     else
       let
         # Each component is compared inside a one-key slice (`intersectAttrs` carries the slot): a
@@ -324,7 +393,8 @@ let
   # Until that migration, the coordinate below discharges only CONDITIONALLY, on the declared
   # `revision` holding its obligation: that makes the digest it feeds fit as a COMPARED decision
   # predicate, never a MINTED key, so it must not be handed to gen-dispatch's `taggedHandle` while
-  # the condition stands.
+  # the condition stands. The encoder below computes no digest over it at all: the coordinate is the
+  # head of its declared comparison subject.
   registryCoordOf = registry: {
     members = builtins.attrNames registry.members;
     inherit (registry) revision;
@@ -376,26 +446,25 @@ let
         # operands stay readable on a value nobody has applied.
         fn = registry.members.${ctor} args;
 
-        # LAZY: an intensional value nobody compares hashes nothing. The preimage is TOTAL over the
-        # distinguishing content, which is what makes this a mint rather than a key — an identity
-        # over a partial preimage merges behaviourally distinct values, and for a relation that
-        # MINTS there is no safe direction to err in.
+        # ★ COMPARED, NEVER MINTED (den-hoag-hhki8; ADR-0034's compared regime). The coordinate above
+        # discharges only CONDITIONALLY, on the declared `revision`, so a digest over it is fit as a
+        # decision predicate and never as a key. The value therefore carries no mint: it DECLARES its
+        # comparison subject, the registry coordinate, the constructor and the inert argument value
+        # (ADR-0034's component-list clause: "The constructor's declared component list names what that
+        # comparison's SUBJECT must be"). Every key site reads the tag through `identityOf` and finds no
+        # exact identity: `isExact` is `false`, a composite tags it with `sealedMarker`, and
+        # gen-dispatch's `taggedHandle` answers no handle. Every decision reads `subject` through
+        # `comparisonSubject`, so two constructions of one term decide `true` and a different argument,
+        # member set or revision decides `false`. No digest is computed.
         __mint = {
-          minted =
-            hashIdentity "its"
-              [
-                "registry"
-                "ctor"
-                "args"
-              ]
-              (
-                l:
-                {
-                  registry = registryCoordOf registry;
-                  inherit ctor args;
-                }
-                .${l}
-              );
+          unmintable = {
+            inherit ctor;
+            reason = "a registered construction is compared by its declared subject (registry coordinate, constructor, inert arguments), never minted: its coordinate discharges only on the declared `revision`";
+            subject = {
+              registry = registryCoordOf registry;
+              inherit ctor args;
+            };
+          };
         };
 
         __functor = self: self.fn;
@@ -458,6 +527,7 @@ in
     regimeTagOf
     isExact
     comparisonSubject
+    hasDeclaredSubject
     sealedMarker
     preimageTagOf
     componentsPreimage
