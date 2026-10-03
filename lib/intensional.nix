@@ -53,9 +53,22 @@ let
   # the gen-identity leaf, so the edge closes no cycle) and builds its per-component identity on
   # `componentsPreimage` and `sealedCollisionEq` below, while its `identityOf` keeps the arms only a
   # type record has (a rewritten `check`, a foreign record).
+  # ★ A MARK BESIDE SEALED COMPONENTS IS NOT AN EXACT IDENTITY. A value carrying a non-empty
+  # `__sealed` (a gen-types type or a gen-schema kind over a caller lambda or a registered
+  # construction) mints over the rest and is blind to what it sealed, so it is on the compared arm
+  # here: `isExact` is false, no key site keys on its mark, and `conservativeEq` decides it over the
+  # mark AND the sealed subjects. `preimageTagOf` still enters it by its mark, for propagation.
+  hasMark = v: v ? __mint && builtins.isAttrs v.__mint && v.__mint ? minted;
+  sealsSomething = v: builtins.isAttrs (v.__sealed or null) && v.__sealed != { };
   identityOf =
     v:
-    if v ? __mint && v.__mint ? minted then
+    if hasMark v && sealsSomething v then
+      {
+        unmintable = {
+          reason = "a mark beside sealed components, which it is blind to, is not an exact identity";
+        };
+      }
+    else if v ? __mint && v.__mint ? minted then
       { inherit (v.__mint) minted; }
     else if v ? __mint then
       { inherit (v.__mint) unmintable; }
@@ -164,7 +177,13 @@ let
       let
         i = identityOf v;
       in
-      if isExact i then { inherit (i) minted; } else sealedMarker
+      # a mark beside sealed components enters by its mark (propagation hands the subjects up)
+      if hasMark v then
+        { inherit (v.__mint) minted; }
+      else if isExact i then
+        { inherit (i) minted; }
+      else
+        sealedMarker
     else
       let
         attempt = builtins.tryEval (hashIdentity "component" [ "value" ] (_: v));
@@ -514,7 +533,19 @@ let
       ia = identityOf a;
       ib = identityOf b;
     in
-    if ia ? minted && ib ? minted then
+    if hasMark a && hasMark b && (sealsSomething a || sealsSomething b) then
+      sealedCollisionEq "conservativeEq"
+        {
+          name = if builtins.isString (a.name or null) then a.name else "<unnamed>";
+          mark = a.__mint.minted;
+          sealed = a.__sealed or { };
+        }
+        {
+          name = if builtins.isString (b.name or null) then b.name else "<unnamed>";
+          mark = b.__mint.minted;
+          sealed = b.__sealed or { };
+        }
+    else if ia ? minted && ib ? minted then
       ia.minted == ib.minted
     else
       comparisonSubject a == comparisonSubject b;

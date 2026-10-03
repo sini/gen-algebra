@@ -284,6 +284,43 @@ in
         twins = true;
       };
     };
+    # A MARK BESIDE SEALED COMPONENTS IS NOT AN EXACT IDENTITY (landing gate C1): the exported readers
+    # put such a value on the compared arm, and `conservativeEq` decides it over the mark and the
+    # sealed subjects, so two `typedef "loom"`s over two separately written lambdas are refused, never
+    # called equal; `preimageTagOf` still enters it by its mark, for propagation.
+    test-a-mark-beside-sealed-components-is-not-exact = {
+      expr =
+        let
+          loom = f: {
+            name = "loom";
+            __mint.minted = "type:loom";
+            __sealed.pred = f;
+          };
+          gt = v: v > 0;
+          lt = v: v < 0;
+          a = loom gt;
+        in
+        {
+          exact = genAlgebra.isExact (genAlgebra.identityOf a);
+          regime = genAlgebra.regimeTagOf (genAlgebra.identityOf a);
+          twoLambdas = decides (genAlgebra.conservativeEq a (loom lt));
+          oneBinding = genAlgebra.conservativeEq a (loom gt);
+          otherMark = genAlgebra.conservativeEq a (a // { __mint.minted = "type:other"; });
+          tagIsTheMark = tag a;
+          controlMinted = genAlgebra.isExact (genAlgebra.identityOf { __mint.minted = "type:int"; });
+        };
+      expected = {
+        exact = false;
+        regime = "s";
+        twoLambdas = false;
+        oneBinding = true;
+        otherMark = false;
+        tagIsTheMark = {
+          minted = "type:loom";
+        };
+        controlMinted = true;
+      };
+    };
     # A bare function's only identity is its value slot, so `sealed` hands the component's own slot
     # over: one shared lambda sealed twice decides `true` on every evaluator (upstream Nix and
     # Determinate refused it while the copy was a fresh thunk; Lix did not), and a second lambda of

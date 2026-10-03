@@ -261,6 +261,10 @@ minted component that itself carries a non-empty `__sealed` (a type or kind over
 enters by its mark and hands its `__sealed` to the parent under its path, so the parent's mark never
 decides on its own what the child's mark was blind to.
 
+A value carrying a mark beside a non-empty `__sealed` is not an exact identity: `identityOf` puts it on
+the compared arm (`isExact` false), `conservativeEq` decides it through `sealedCollisionEq` over its
+mark and sealed subjects, and `preimageTagOf` still enters it by its mark.
+
 `sealedCollisionEq site a b` over `{ name; mark; sealed; }` decides `false` on distinct marks and
 `true` on equal marks with `==` sealed subjects. Equal marks with unequal subjects decide `false` when
 every differing leaf is a `compared` entry whose subject is inert on both sides (a bounded walk under
