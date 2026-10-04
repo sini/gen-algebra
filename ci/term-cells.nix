@@ -54,6 +54,73 @@ let
   modB = { config, ... }: { };
   idOf = t: identityOf t;
   mintOf = t: (identityOf t).minted or "<no-identity>";
+  # Operand pairs for the order-independence cells: present-true / present-false / declared-absent
+  # `has` and `eq` / negated / always / never.
+  oiDeclared = [
+    "host"
+    "user"
+  ];
+  oiCtx = {
+    host.name = "h";
+  };
+  oiOps = {
+    Th = term.has "host";
+    Te = term.eq [ "host" "name" ] "h";
+    Fe = term.eq [ "host" "name" ] "z";
+    Ah = term.has "user";
+    Ae = term.eq [ "user" ] "x";
+    NAh = term.not (term.has "user");
+    AL = term.always;
+    NV = term.not term.always;
+  };
+  oiNames = builtins.attrNames oiOps;
+  oiPairs = builtins.concatMap (
+    a: builtins.concatMap (b: if a < b then [ { inherit a b; } ] else [ ]) oiNames
+  ) oiNames;
+  cwEnv = {
+    context = oiCtx;
+    declared = oiDeclared;
+  };
+  owEnv = {
+    context = oiCtx;
+  };
+  shown = r: if r ? left then "refused:" + r.left.code else builtins.toJSON r.right;
+  oiRun =
+    env: conn: a: b:
+    shown (
+      resolveTerm env (
+        term.${conn} [
+          oiOps.${a}
+          oiOps.${b}
+        ]
+      )
+    );
+  orderDiffer =
+    env: conn:
+    map (p: "${p.a}/${p.b}") (
+      builtins.filter (p: oiRun env conn p.a p.b != oiRun env conn p.b p.a) oiPairs
+    );
+  oiValue = n: (resolveTerm cwEnv oiOps.${n}).right;
+  booleanMismatch =
+    conn: f:
+    map (p: "${p.a}/${p.b}") (
+      builtins.filter (
+        p:
+        oiRun cwEnv conn p.a p.b != builtins.toJSON (
+          f (n: oiValue n) [
+            p.a
+            p.b
+          ]
+        )
+        ||
+          oiRun cwEnv conn p.b p.a != builtins.toJSON (
+            f (n: oiValue n) [
+              p.a
+              p.b
+            ]
+          )
+      ) oiPairs
+    );
   src = "entity:" + builtins.concatStringsSep "" (builtins.genList (_: "a") 64);
 in
 {
@@ -280,6 +347,53 @@ in
         );
     expected = {
       right = true;
+    };
+  };
+  # ── order independence under a declared set, over every operand pair (ADR-0022) ──
+  # `a·b` and `b·a` must agree for `any` and `all`, and equal the Boolean connective of the
+  # operands' own values. The open world is the control: its accepted order dependence stays.
+  cw-connective-order-independent = {
+    expr = {
+      any = orderDiffer cwEnv "any";
+      all = orderDiffer cwEnv "all";
+    };
+    expected = {
+      any = [ ];
+      all = [ ];
+    };
+  };
+  cw-connective-is-boolean = {
+    expr = {
+      any = booleanMismatch "any" builtins.any;
+      all = booleanMismatch "all" builtins.all;
+    };
+    expected = {
+      any = [ ];
+      all = [ ];
+    };
+  };
+  ow-connective-order-dependent = {
+    expr = {
+      any = orderDiffer owEnv "any";
+      all = orderDiffer owEnv "all";
+    };
+    expected = {
+      any = [
+        "AL/Ah"
+        "AL/NAh"
+        "Ah/Te"
+        "Ah/Th"
+        "NAh/Te"
+        "NAh/Th"
+      ];
+      all = [
+        "Ae/Ah"
+        "Ae/NAh"
+        "Ah/Fe"
+        "Ah/NV"
+        "Fe/NAh"
+        "NAh/NV"
+      ];
     };
   };
   # ── the value-error clause: body reads only ──
