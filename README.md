@@ -193,7 +193,7 @@ arms, neither of which merges more than Fig. 5** over non-derivation operands (N
 `closure` compares equal; the relation therefore excludes every derivation — see `conservativeEq`'s binding in
 `lib/intensional.nix`). Where both sides carry a minted identity the
 digests decide, which is exact and fuses both of Fig. 5's conjuncts. Every other pair — sealed,
-unmigrated or mixed — **falls through** to the **reified value** minus `__id`, never a list of
+unmigrated or mixed — **falls through** to the **reified value** itself, never a list of
 components; on lambda-carrying values its precision is an allocation artefact, so two
 separately-constructed equal-shaped values compare unequal and that arm merges strictly **less** than
 Fig. 5, while on inert values it both identifies and separates. There is **no name arm**: deciding an
@@ -202,9 +202,10 @@ equal, which Fig. 5 forbids. The name stays the unmigrated regime's bucket *labe
 (below) and never decides.
 
 The fall-through is **total over inert attrset operands and partial over three populations**, the
-same boundary gen-select rules at `selectorEq`: a payload that refuses under any key but `__id`
-surfaces its own catchable throw, a self-referential payload aborts the evaluator uncatchably, and a
-non-attrset operand is refused by `removeAttrs`. `__id` is excluded; nothing else is.
+same boundary gen-select rules at `selectorEq`: a payload that refuses under any key surfaces its
+own catchable throw, and a self-referential payload aborts the evaluator uncatchably. Nothing is
+excluded: a value's fields are total data, and demanding an identity is gen-types' `idOf`, a
+function rather than a field.
 
 A component-wise conjunct is not the remedy. This design's component-list rule holds that a
 constructor's declared components name what the comparison's **subject** must be, and never a set of
@@ -213,9 +214,6 @@ that a component-wise form cannot work. Nix `==` short-circuits on pointer ident
 selection compares true against itself even when the selected value holds a lambda, and the
 component-wise form would be *finer* rather than empty — only separately allocated lambdas compare
 false.
-
-`__id` is excluded because it is the **accessor** a consumer reads when it *demands* an identity, and
-where nothing is minted that accessor is the named refusal itself.
 
 A key site that dedups on these identities reads the same discipline rather than calling
 `conservativeEq`: it keys exactly where an identity is minted and buckets otherwise, every key

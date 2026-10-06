@@ -351,5 +351,18 @@ in
         other = false;
       };
     };
+    # A sealed component is handed over WHOLE, `__id` key and all: no field of a compared value is an
+    # accessor to exclude, since demanding an identity is gen-types' `idOf` (den-hoag-6orb8 A1). Reds
+    # on a build that still strips the retired field from a component carrying it.
+    test-a-sealed-component-is-compared-whole = {
+      expr =
+        (componentsPreimage genIdentity.hashIdentity [
+          (sealedAt [ "m" ] {
+            __id = "kept";
+            f = x: x;
+          })
+        ]).sealed.m.__id or null;
+      expected = "kept";
+    };
   };
 }

@@ -103,25 +103,19 @@ let
   # merges WORK; a site whose relation decides an answer owes its own argument.
   isExact = i: i ? minted;
 
-  # The comparison SUBJECT for the non-exact arms: the reified value MINUS `__id`, and minus nothing
-  # else. `__id` is the ACCESSOR a consumer reads when it DEMANDS an identity, and where nothing is
-  # minted that accessor IS the named refusal — so it is not distinguishing content, and forcing it
-  # inside a comparison would detonate the very decision the refusal exists to permit. `removeAttrs`
-  # preserves the evaluator's cell fast path and is a byte-for-byte no-op on a value carrying no
-  # `__id`, so this excludes the accessor without emptying the relation.
+  # The comparison SUBJECT for the non-exact arms: the reified value itself, excluding nothing. A
+  # value's fields are total data; the one partial operation, DEMANDING an identity, is gen-types'
+  # `idOf`, a function, so no field of a compared value is an accessor that refuses when forced.
   #
   # ★ A DECLARED SUBJECT IS THE SUBJECT. A value carrying `__mint.unmintable.subject` (the encoder
   # below) names what its comparison compares, so that subject is answered instead of the record:
   # the record holds `fn`, a lambda rebuilt per construction, and comparing it would separate two
   # constructions of one term on an allocation fact.
   #
-  # ★ WHY EXCLUDING `__id` IS SUFFICIENT AND NOT ARBITRARY. It is the only OTHER refusal-valued
-  # accessor a compared value can carry, because `__mint.minted` is shielded by the tagged sum's own
-  # shape: the minted and sealed arms live under DIFFERENT KEY NAMES, and Nix `==` decides on the
-  # name set before forcing any value. Two sealed values carry inert payloads under one name, so
-  # nothing forces there either. The one path that does force a mint is a minted-against-minted
-  # comparison, and that arm never reaches here: it compares digests, which is a genuine DEMAND for
-  # an identity, where a catchable named refusal is the correct outcome rather than a hazard.
+  # `__mint.minted` cannot refuse inside a comparison either: the minted and sealed arms live under
+  # DIFFERENT KEY NAMES, and Nix `==` decides on the name set before forcing any value. Two sealed
+  # values carry inert payloads under one name, so nothing forces there. The one path that does force
+  # a mint is a minted-against-minted comparison, and that arm never reaches here: it compares digests.
   hasDeclaredSubject =
     v:
     builtins.isAttrs v
@@ -130,8 +124,7 @@ let
     && v.__mint ? unmintable
     && builtins.isAttrs v.__mint.unmintable
     && v.__mint.unmintable ? subject;
-  comparisonSubject =
-    v: if hasDeclaredSubject v then v.__mint.unmintable.subject else removeAttrs v [ "__id" ];
+  comparisonSubject = v: if hasDeclaredSubject v then v.__mint.unmintable.subject else v;
 
   # ── per-component preimage tags (c+), den-hoag-markof-partial-preimage-znfjq ──
   #
@@ -194,8 +187,8 @@ let
   # segments), to its preimage and its sealed subjects. Both maps are keyed by the path's
   # segments RFC 6901-escaped and joined with "." — `rec.nix` `flattenAttrs`'s key encoding, which
   # is injective where a bare join is not. `sealed` maps each SEALED component to
-  # the value a `==` decision compares — the reified value minus its `__id` accessor
-  # (`comparisonSubject`). A composite mints over `tags`; a door comparing two composites hands
+  # the value a `==` decision compares — the reified value itself, or a registered construction's
+  # declared subject (`comparisonSubject`). A composite mints over `tags`; a door comparing two composites hands
   # `sealed` to `sealedCollisionEq`. ONE call yields both, so the two cannot read different planes.
   #
   # Two more entries, each what keeps a mark from deciding more than its preimage holds:
@@ -251,8 +244,7 @@ let
       {
         inherit tags;
         sealed = builtins.listToAttrs (
-          # `comparisonSubject` only where there is an `__id` to drop: `removeAttrs` allocates. An
-          # unchanged value is handed over as the component record itself (`listToAttrs` reads its
+          # A value with no declared subject is handed over as the component record itself (`listToAttrs` reads its
           # `name` and `value`), because `//` carries attribute slots while any `value = …` binding
           # is a fresh thunk. The copy keeps the value SLOT so that Nix `==` can apply its documented
           # value-identity optimisation (Nix manual, "Equality" under Language Values, on `==` for
@@ -260,13 +252,7 @@ let
           # that drops the optimisation compares two shared-lambda components unequal, and the
           # result is a refusal by name, never a false admit.
           map (
-            c:
-            if hasDeclaredSubject c.value then
-              c // { value.compared = comparisonSubject c.value; }
-            else if builtins.isAttrs c.value && c.value ? __id then
-              c // { value = comparisonSubject c.value; }
-            else
-              c
+            c: if hasDeclaredSubject c.value then c // { value.compared = comparisonSubject c.value; } else c
           ) (builtins.filter (c: c.tag == sealedMarker) tagged)
           ++ map (c: c // { value = c.value.__sealed; }) (builtins.filter propagates tagged)
         );
@@ -499,8 +485,8 @@ let
   # two `type = "derivation"` attrsets by `outPath` alone, so a derivation-shaped pair differing
   # only in `closure` compares EQUAL; ADR-0034 excludes every derivation. Minted values compare by digest, which is exact
   # and fuses both of Fig. 5's conjuncts into one comparison. EVERY OTHER PAIR — sealed, unmigrated,
-  # or mixed — falls through to THE REIFIED VALUE, minus `comparisonSubject`'s one exclusion, and
-  # never a list of components: ADR-0034's decision clause, "where it decides rather than mints, it
+  # or mixed — falls through to THE REIFIED VALUE (`comparisonSubject`), and never a list of
+  # components: ADR-0034's decision clause, "where it decides rather than mints, it
   # compares the reified value itself under Nix `==`". Its precision there is an allocation
   # artefact on lambda-carrying values, so two separately-constructed equal-shaped values compare
   # unequal and that arm merges strictly LESS than Fig. 5; on inert values it both identifies and
@@ -512,10 +498,9 @@ let
   # regime's bucket LABEL at a key site, where a structural comparison follows it (`isExact`'s
   # obligation); it never decides here.
   #
-  # ★ THE FALL-THROUGH IS TOTAL OVER INERT ATTRSET OPERANDS, AND PARTIAL OVER THREE POPULATIONS — a
-  # caller payload that refuses under any key but `__id` (a catchable refusal), a self-referential
-  # payload (an UNCATCHABLE evaluator abort), and a non-attrset operand (`removeAttrs` refuses it,
-  # also uncatchably). That is a
+  # ★ THE FALL-THROUGH IS TOTAL OVER INERT OPERANDS, AND PARTIAL OVER TWO POPULATIONS — a caller
+  # payload that refuses under any key (a catchable refusal), and a self-referential payload (an
+  # UNCATCHABLE evaluator abort). That is a
   # property of structural equality over caller data, shared with any key site's bucket scan and with
   # gen-select's `selectorEq`, which rules the same boundary. Closing it is a BOUNDED walk, which
   # ADR-0034 gives the mint and not this clause; it is an open design question, not a local fix.

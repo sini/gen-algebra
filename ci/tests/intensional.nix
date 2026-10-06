@@ -320,14 +320,15 @@ in
       };
     };
 
-  # ★ THE DOMAIN BOUNDARY ON THE NON-EXACT ARM. `comparisonSubject` excludes `__id` and NOTHING ELSE,
-  # so it discharges the one refusal ADR-0034 requires a sealed producer to carry and no other: a
-  # refusal one key over surfaces as its own named, catchable throw. The same boundary gen-select
-  # rules at `selectorEq` and pins with `test-structural-fallthrough-forces-its-payload`, whose four
-  # arms this cell mirrors, driven in BOTH non-exact regimes.
+  # ★ THE DOMAIN BOUNDARY ON THE NON-EXACT ARM. `comparisonSubject` excludes NOTHING: a type record
+  # carries no refusal-valued field (demanding an identity is gen-types' `idOf`, a function), so a
+  # payload refusing under `__id` surfaces its own catchable throw exactly as one under any other key
+  # does. The same boundary gen-select rules at `selectorEq` and pins with
+  # `test-structural-fallthrough-forces-its-payload`, whose four arms this cell mirrors, driven in
+  # BOTH non-exact regimes. The `__id` arm reds on a build that still excludes the retired field.
   #
-  # The ordinary-key arm is the cell's other half, not a nicety: without it the cell is green on a
-  # build that excludes every key and on one that excludes none. A self-referential payload sits on
+  # The no-refusal arms are the cell's other half, not a nicety: without them the cell is green on a
+  # build whose relation decides nothing. A self-referential payload sits on
   # the same boundary but aborts the evaluator uncatchably, so no cell can hold it; it is written at
   # `conservativeEq`'s binding instead.
   flake.tests.intensional.test-non-exact-arm-forces-its-payload =
@@ -349,7 +350,7 @@ in
           eqOn = a: b: conservativeEq (base // a) (base // b);
         in
         {
-          withRefusingAccessor = decides (
+          withRefusingIdKey = decides (
             eqOn { __id = throw "identity: no mintable identity"; } {
               __id = throw "identity: no mintable identity";
             }
@@ -359,7 +360,7 @@ in
           withNoRefusalDiffering = eqOn { zz = "v"; } { zz = "w"; };
         };
       boundary = {
-        withRefusingAccessor = true;
+        withRefusingIdKey = false;
         withOrdinaryKey = false;
         withNoRefusal = true;
         withNoRefusalDiffering = false;
