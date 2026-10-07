@@ -495,17 +495,17 @@ let
 
   # instance = { vocabulary ? knownFormers; declared ? null; slots ? null; }
   # slots = { isKey = name -> bool; admits = value -> bool; }
+  # The instance is read once per check, not once per node: `go` is the walk.
   checkTerm =
-    instance: t:
+    instance:
     let
       vocabulary = instance.vocabulary or knownFormers;
       declared = instance.declared or null;
       slots = instance.slots or null;
-      recurse = checkTerm instance;
       attrChild =
         k: v:
         if isTerm v || isRefusal v then
-          recurse v
+          go v
         else if slots != null && slots.isKey k then
           (
             if slots.admits v then
@@ -527,41 +527,44 @@ let
             node = builtins.typeOf v;
             inherit vocabulary;
           };
-    in
-    if isRefusal t then
-      t
-    else if !(isTerm t) then
-      (
-        if builtins.isFunction t then
-          refuse "term-function" { remedy = "a closure is not a term"; }
-        else
+      go =
+        t:
+        if isRefusal t then
+          t
+        else if !(isTerm t) then
+          (
+            if builtins.isFunction t then
+              refuse "term-function" { remedy = "a closure is not a term"; }
+            else
+              refuse "term-vocabulary" {
+                node = builtins.typeOf t;
+                inherit vocabulary;
+              }
+          )
+        else if !(elem t.__bodyTerm vocabulary) then
           refuse "term-vocabulary" {
-            node = builtins.typeOf t;
+            former = t.__bodyTerm;
             inherit vocabulary;
           }
-      )
-    else if !(elem t.__bodyTerm vocabulary) then
-      refuse "term-vocabulary" {
-        former = t.__bodyTerm;
-        inherit vocabulary;
-      }
-    else if t.__bodyTerm == "Apply" && !(isPrim (t.prim or null)) then
-      refuse "term-vocabulary" {
-        prim = if builtins.isString (t.prim or null) then t.prim else builtins.typeOf (t.prim or null);
-        vocabulary = builtins.attrNames prims;
-      }
-    else if declared != null && elem t.__bodyTerm contextReaders && !(elem (headOf t) declared) then
-      undeclared declared (headOf t)
-    else if t.__bodyTerm == "Attrs" then
-      let
-        r = traverseAttrs t.attrs attrChild;
-      in
-      if isRefusal r then r else ok t
-    else
-      let
-        bad = firstRefusal (map recurse (children t));
-      in
-      if bad != null then bad else ok t;
+        else if t.__bodyTerm == "Apply" && !(isPrim (t.prim or null)) then
+          refuse "term-vocabulary" {
+            prim = if builtins.isString (t.prim or null) then t.prim else builtins.typeOf (t.prim or null);
+            vocabulary = builtins.attrNames prims;
+          }
+        else if declared != null && elem t.__bodyTerm contextReaders && !(elem (headOf t) declared) then
+          undeclared declared (headOf t)
+        else if t.__bodyTerm == "Attrs" then
+          let
+            r = traverseAttrs t.attrs attrChild;
+          in
+          if isRefusal r then r else ok t
+        else
+          let
+            bad = firstRefusal (map go (children t));
+          in
+          if bad != null then bad else ok t;
+    in
+    go;
 
   # The names a condition COVERS (Apt-Blair-Walker's positive literals). A disjunction covers only
   # what every disjunct covers; `not`, `always` and an empty `any` cover nothing.
@@ -624,8 +627,9 @@ let
             "condition"
             "body"
           ];
-      c = checkTerm instance clause.condition;
-      b = checkTerm instance clause.body;
+      check = checkTerm instance;
+      c = check clause.condition;
+      b = check clause.body;
       bad = notCondition clause.condition;
       covered = cover clause.condition;
       uncovered = builtins.filter (r: !(elem r.head covered)) (safetyReads clause.body);
