@@ -307,4 +307,15 @@ in
           };
         };
     };
+
+  # `markOf` refuses BY NAME on a value carrying no mark, where `.minted` raw aborts uncatchably.
+  flake.testsError.mark-refusals.test-markOf-without-a-mark-refuses-by-name = {
+    expr =
+      assert ok genAlgebra.markOf { __mint.minted = "m"; } "m";
+      genAlgebra.markOf { __mint.unmintable.reason = "r"; };
+    expectedError = {
+      type = "ThrownError";
+      msg = "^gen-algebra: markOf: the value carries no mark \\(no `__mint` with a `minted` arm\\); a set is not a value its producer minted. Decide with `hasMark` before demanding the mark.$";
+    };
+  };
 }

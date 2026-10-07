@@ -59,6 +59,20 @@ let
   # here: `isExact` is false, no key site keys on its mark, and `conservativeEq` decides it over the
   # mark AND the sealed subjects. `preimageTagOf` still enters it by its mark, for propagation.
   hasMark = v: v ? __mint && builtins.isAttrs v.__mint && v.__mint ? minted;
+
+  # ★ A MARK IS NOT AN IDENTITY, AND IT HAS ITS OWN TWO READERS. A key site that keys by the mark
+  # AND the sealed subjects (gen-schema's `kindEq`, gen-select's kind key) needs the mark wherever
+  # one was minted, sealed components or not, and `identityOf` answers the compared arm for exactly
+  # the sealed half. `hasMark` is the DECISION (does the value carry one; it forces the `__mint`
+  # record and never the digest), `markOf` the DEMAND, which refuses by name where `.minted` raw
+  # would abort uncatchably. Where nothing is sealed the two agree: `identityOf v` is
+  # `{ minted = markOf v; }`.
+  markOf =
+    v:
+    if hasMark v then
+      v.__mint.minted
+    else
+      throw "gen-algebra: markOf: the value carries no mark (no `__mint` with a `minted` arm); a ${builtins.typeOf v} is not a value its producer minted. Decide with `hasMark` before demanding the mark.";
   sealsSomething = v: builtins.isAttrs (v.__sealed or null) && v.__sealed != { };
   identityOf =
     v:
@@ -537,6 +551,8 @@ let
 in
 {
   inherit
+    hasMark
+    markOf
     mkIntensional
     conservativeEq
     identityOf

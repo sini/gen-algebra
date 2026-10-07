@@ -16,9 +16,13 @@ in
   # `identityOf` and its three siblings are exported because a consumer that DECIDES must dispatch
   # on the regime tag rather than reading `__mint` raw — a value with no mintable identity carries
   # the field and not the `minted` arm, so a raw read aborts uncatchably instead of refusing.
+  # `hasMark` and `markOf` read the MARK, which a value beside sealed components still carries
+  # where `identityOf` answers the compared arm.
   inherit (intensional)
     mkIntensional
     conservativeEq
+    hasMark
+    markOf
     identityOf
     regimeTagOf
     isExact
