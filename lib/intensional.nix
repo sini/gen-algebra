@@ -66,9 +66,9 @@ let
   # bucket over the sealed subjects with `sealedCollisionEq` (gen-schema's `kindEq`, gen-select's
   # `kindEq` over its kind key). A mark alone never decides an equal-mark pair. Such a site needs
   # the mark wherever one was minted, sealed components or not, and `identityOf` answers the
-  # compared arm for exactly the sealed half. gen-scope's `requireScope` and `sameKind` compare the
-  # mark alone: that is l0y's declared residue, routed to `den-hoag-gzjf7`, not an instance of this
-  # rule. `hasMark` is the DECISION (does the value carry one; it forces the `__mint` record and
+  # compared arm for exactly the sealed half. gen-scope's `requireScope` and `sameKind` are such
+  # sites: they decide within the bucket by `sealedCollisionEq`, through gen-scope's `sameKindValue`.
+  # `hasMark` is the DECISION (does the value carry one; it forces the `__mint` record and
   # never the digest), `markOf` the DEMAND, which refuses by name where `.minted` raw would abort
   # uncatchably. Where nothing is sealed the two agree: `identityOf v` is `{ minted = markOf v; }`.
   # Both are written so a read costs no thunk and `markOf` no second call: `?` and `or` answer

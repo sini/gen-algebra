@@ -132,8 +132,8 @@ first line of each):
   bucket over the sealed subjects with `sealedCollisionEq` (gen-select's `kindEq`), so a mark alone
   never decides an equal-mark pair. Such a site decides with `hasMark` and demands with `markOf`, which
   refuses by name where there is no mark, and never reads it through `identityOf`. gen-scope's
-  `requireScope` and `sameKind` compare the mark alone: l0y's declared residue, routed to
-  `den-hoag-gzjf7`, not an instance of this rule. The mint itself is gen-identity's `hashIdentity`, injected; this library authors the
+  `requireScope` and `sameKind` are such sites: they decide within the bucket by `sealedCollisionEq`,
+  through gen-scope's `sameKindValue`. The mint itself is gen-identity's `hashIdentity`, injected; this library authors the
   sum that carries its result. Two other libraries define their own `identityOf` over it
   (gen-dispatch `lib/core/rule.nix`, and gen-types `lib/default.nix`, which adds an arm for foreign
   option-type records); gen-select imports this one. The parity of those definitions is
