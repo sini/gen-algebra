@@ -21,8 +21,11 @@ let
   ok = either.right;
   refuse = code: witness: either.left { inherit code witness; };
 
-  # The table's revision (ADR-0034 "required and total"). It covers every former's interpretation and
-  # every primitive, because every term mints over it. Internal: no consumer reads it.
+  # The encoding's revision (ADR-0034 "required and total"). Every term mints over it, and it is bumped
+  # when the preimage handed to the mint changes shape. It versions that encoding only, never how a
+  # former or primitive is interpreted. A term's digest is therefore its SYNTAX identity under the one
+  # gen-algebra of an evaluation: a sibling library at a different pin is a foreign evaluation
+  # (ADR-0014), so the identity boundary is the evaluation, not the repo. Internal: no consumer reads it.
   revision = "1";
 
   # A refusal is recognised by its exact shape, so a slot payload that merely has a `left` is not one.
