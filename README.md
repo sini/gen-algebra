@@ -94,7 +94,7 @@ in
 
 ## API Reference
 
-Every exported name is documented below, grouped by primitive family. The full surface is `record` (26), `either` (6), plus top-level `mkIntensional`, `conservativeEq`, the four identity-regime readers (`identityOf`, `regimeTagOf`, `isExact`, `comparisonSubject`) and the four composite-preimage names (`preimageTagOf`, `componentsPreimage`, `sealedCollisionEq`, `sealedMarker`) — verified against `nix eval .#lib`.
+Every exported name is documented below, grouped by primitive family. The full surface is `record` (26), `either` (6), plus top-level `mkIntensional`, `conservativeEq`, the four identity-regime readers (`identityOf`, `regimeTagOf`, `isExact`, `comparisonSubject`), the two mark readers (`hasMark`, `markOf`) and the four composite-preimage names (`preimageTagOf`, `componentsPreimage`, `sealedCollisionEq`, `sealedMarker`) — verified against `nix eval .#lib`.
 
 ### Intensional Functions
 
@@ -262,6 +262,23 @@ decides on its own what the child's mark was blind to.
 A value carrying a mark beside a non-empty `__sealed` is not an exact identity: `identityOf` puts it on
 the compared arm (`isExact` false), `conservativeEq` decides it through `sealedCollisionEq` over its
 mark and sealed subjects, and `preimageTagOf` still enters it by its mark.
+
+#### `hasMark` / `markOf`
+
+**A mark is not an identity.** A gen-schema kind with an option default carries a non-empty `__sealed`,
+so `identityOf` answers the compared arm for it, and its mark is still what a key over the mark AND the
+sealed subjects reads (gen-select's kind key, gen-schema's `kindEq`). `hasMark v` decides whether `v`
+carries a minted mark; it forces the `__mint` record and never the digest. `markOf v` demands the mark
+and refuses by name where there is none, where a raw `.minted` read aborts uncatchably. Where nothing is
+sealed the two readers agree: `identityOf v` is `{ minted = markOf v; }`.
+
+```nix
+k = schema.host;              # a kind whose `port` option has a default
+hasMark k                     # → true
+markOf k                      # → "schemakind:687e…"
+regimeTagOf (identityOf k)    # → "s"  (a mark beside sealed components)
+markOf { name = "x"; }        # → error: gen-algebra: markOf: the value carries no mark …
+```
 
 `sealedCollisionEq site a b` over `{ name; mark; sealed; }` decides `false` on distinct marks and
 `true` on equal marks with `==` sealed subjects. Equal marks with unequal subjects decide `false` when
