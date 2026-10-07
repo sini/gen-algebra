@@ -309,6 +309,14 @@ let
       ) (builtins.attrNames (x // y))
     else
       false;
+  # `sealedCollisionRefusal site name components` — the text `sealedCollisionEq` throws, as a value
+  # (den-hoag-7jltk): the checker throws exactly this, so a downstream cell composes its expected
+  # message through it with its own literal site, name and component paths.
+  sealedCollisionRefusal =
+    site: name: components:
+    "${site}: two declarations of '${name}' mint one identity and are unequal only at sealed component(s) ${
+      builtins.concatStringsSep ", " (map (k: "'${k}'") components)
+    }: a sealed component is compared by its seal, the whole value under Nix `==`, where two separately built functions are never equal, so two separate constructions are refused even where the values they compute are equal; a sealed component has no identity, because identity is minted from inert structure alone: migrate it to a first-order term, a registered constructor over inert arguments, so that it mints";
   sealedCollisionEq =
     site: a: b:
     let
@@ -345,9 +353,7 @@ let
           builtins.attrNames a.sealed
         );
       in
-      throw "${site}: two declarations of '${a.name}' mint one identity and are unequal only at sealed component(s) ${
-        builtins.concatStringsSep ", " (map (k: "'${k}'") differing)
-      }: a sealed component is compared by its seal, the whole value under Nix `==`, where two separately built functions are never equal, so two separate constructions are refused even where the values they compute are equal; a sealed component has no identity, because identity is minted from inert structure alone: migrate it to a first-order term, a registered constructor over inert arguments, so that it mints";
+      throw (sealedCollisionRefusal site a.name differing);
 
   # ── the encoder ──
   #
@@ -548,5 +554,6 @@ in
     preimageTagOf
     componentsPreimage
     sealedCollisionEq
+    sealedCollisionRefusal
     ;
 }

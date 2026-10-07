@@ -28,5 +28,6 @@ in
     preimageTagOf
     componentsPreimage
     sealedCollisionEq
+    sealedCollisionRefusal
     ;
 }

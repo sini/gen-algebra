@@ -9,6 +9,27 @@
 { genAlgebra, genIdentity, ... }:
 let
   inherit (genAlgebra) record;
+  # POSIX ERE escape for a composed expectation (gen-algebra takes no gen-prelude).
+  esc =
+    let
+      meta = [
+        "\\"
+        "."
+        "("
+        ")"
+        "["
+        "]"
+        "{"
+        "}"
+        "*"
+        "+"
+        "?"
+        "^"
+        "$"
+        "|"
+      ];
+    in
+    builtins.replaceStrings meta (map (c: "\\" + c) meta);
 
   ok =
     f: args: expected:
@@ -306,5 +327,16 @@ in
             msg = "^s: two declarations of 'thing' mint one identity and are unequal only at sealed component\\(s\\) 'g': a sealed component is compared by its seal, the whole value under Nix `==`, where two separately built functions are never equal, so two separate constructions are refused even where the values they compute are equal; a sealed component has no identity, because identity is minted from inert structure alone: migrate it to a first-order term, a registered constructor over inert arguments, so that it mints$";
           };
         };
+      # ONE SOURCE (den-hoag-7jltk): the checker throws exactly the published renderer's text for its
+      # own site, name and differing components; the literal cell above pins the renderer's wording.
+      test-collision-throws-the-published-refusal = {
+        expr =
+          assert ctl;
+          sealedCollisionEq "s" (subject shared (x: x)) (subject shared (y: y));
+        expectedError = {
+          type = "ThrownError";
+          msg = "^" + esc (genAlgebra.sealedCollisionRefusal "s" "thing" [ "g" ]) + "$";
+        };
+      };
     };
 }
