@@ -266,8 +266,9 @@ mark and sealed subjects, and `preimageTagOf` still enters it by its mark.
 #### `hasMark` / `markOf`
 
 **A mark is not an identity.** A gen-schema kind with an option default carries a non-empty `__sealed`,
-so `identityOf` answers the compared arm for it, and its mark is still what a key over the mark AND the
-sealed subjects reads (gen-select's kind key, gen-schema's `kindEq`). `hasMark v` decides whether `v`
+so `identityOf` answers the compared arm for it, and its mark is a **bucket label**: a site may bucket or
+look up by it and decides within the bucket over the sealed subjects with `sealedCollisionEq`
+(gen-select's and gen-schema's `kindEq`), so a mark alone never decides an equal-mark pair. `hasMark v` decides whether `v`
 carries a minted mark; it forces the `__mint` record and never the digest. `markOf v` demands the mark
 and refuses by name where there is none, where a raw `.minted` read aborts uncatchably. Where nothing is
 sealed the two readers agree: `identityOf v` is `{ minted = markOf v; }`.

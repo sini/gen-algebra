@@ -56,18 +56,23 @@ let
   # ★ A MARK BESIDE SEALED COMPONENTS IS NOT AN EXACT IDENTITY. A value carrying a non-empty
   # `__sealed` (a gen-types type or a gen-schema kind over a caller lambda or a registered
   # construction) mints over the rest and is blind to what it sealed, so it is on the compared arm
-  # here: `isExact` is false, no key site keys on its mark, and `conservativeEq` decides it over the
-  # mark AND the sealed subjects. `preimageTagOf` still enters it by its mark, for propagation.
+  # here: `isExact` is false, its mark is a BUCKET LABEL and never a key, and `conservativeEq`
+  # decides it over the mark AND the sealed subjects. `preimageTagOf` still enters it by its mark,
+  # for propagation.
   hasMark = v: v ? __mint && v.__mint ? minted;
 
-  # ★ A MARK IS NOT AN IDENTITY, AND IT HAS ITS OWN TWO READERS. A key site that keys by the mark
-  # AND the sealed subjects (gen-schema's `kindEq`, gen-select's kind key) needs the mark wherever
-  # one was minted, sealed components or not, and `identityOf` answers the compared arm for exactly
-  # the sealed half. `hasMark` is the DECISION (does the value carry one; it forces the `__mint`
-  # record and never the digest), `markOf` the DEMAND, which refuses by name where `.minted` raw
-  # would abort uncatchably. Where nothing is sealed the two agree: `identityOf v` is
-  # `{ minted = markOf v; }`. Both are written so a read costs no thunk and `markOf` no second call:
-  # `?` and `or` answer false and the default on a non-set, so neither needs an `isAttrs` guard.
+  # ★ A MARK IS NOT AN IDENTITY, AND IT HAS ITS OWN TWO READERS. Beside sealed components the mark
+  # is a BUCKET LABEL (`isExact` false): a site may bucket or look up by it, and decides within the
+  # bucket over the sealed subjects with `sealedCollisionEq` (gen-schema's `kindEq`, gen-select's
+  # `kindEq` over its kind key). A mark alone never decides an equal-mark pair. Such a site needs
+  # the mark wherever one was minted, sealed components or not, and `identityOf` answers the
+  # compared arm for exactly the sealed half. gen-scope's `requireScope` and `sameKind` compare the
+  # mark alone: that is l0y's declared residue, routed to `den-hoag-gzjf7`, not an instance of this
+  # rule. `hasMark` is the DECISION (does the value carry one; it forces the `__mint` record and
+  # never the digest), `markOf` the DEMAND, which refuses by name where `.minted` raw would abort
+  # uncatchably. Where nothing is sealed the two agree: `identityOf v` is `{ minted = markOf v; }`.
+  # Both are written so a read costs no thunk and `markOf` no second call: `?` and `or` answer
+  # false and the default on a non-set, so neither needs an `isAttrs` guard.
   markOf =
     v:
     v.__mint.minted

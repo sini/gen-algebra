@@ -123,14 +123,17 @@ No `isRight` / `fromRight` / `bimap` — consumers test `? right` / `? left` dir
 **`__` keys crossing the boundary** (R12 stated contracts; the census that reads these lines takes the
 first line of each):
 
-- `__mint` — writer `mkIntensional` (`lib/intensional.nix`), also written by gen-types (`lib/checkers.nix`) and gen-schema (`lib/entry-type.nix`, `lib/refined.nix`); readers `identityOf` (the IDENTITY) and `hasMark`/`markOf` (the MARK) (same file); read by gen-dispatch, gen-merge, gen-schema, gen-scope, gen-select and gen-types:
+- `__mint` — writer `mkIntensional` (`lib/intensional.nix`), also written by gen-types (`lib/checkers.nix`) and gen-schema (`lib/entry-type.nix`, `lib/refined.nix`); readers `identityOf` (the IDENTITY) and `hasMark`/`markOf` (the MARK) (same file); read by gen-aspects, gen-dispatch, gen-merge, gen-program, gen-schema, gen-scope, gen-select and gen-types:
   the identity regime as a TAGGED SUM, `{ minted = "<digest>"; }` or `{ unmintable = { ctor; reason; }; }`.
   A reader dispatches on the tag through `identityOf` and never branches on `? __mint` and then reads
   `.minted` raw. **A MARK IS NOT AN IDENTITY:** a value carrying a mark beside a non-empty `__sealed` (a
   gen-schema kind with an option default) is on `identityOf`'s compared arm and still carries its mark,
-  so a site that keys by the mark AND the sealed subjects (a kind key) decides with `hasMark` and
-  demands with `markOf`, which refuses by name where there is no mark, and never reads it through
-  `identityOf`. The mint itself is gen-identity's `hashIdentity`, injected; this library authors the
+  which is a BUCKET LABEL (`isExact` false): a site may bucket or look up by it and decides within the
+  bucket over the sealed subjects with `sealedCollisionEq` (gen-select's `kindEq`), so a mark alone
+  never decides an equal-mark pair. Such a site decides with `hasMark` and demands with `markOf`, which
+  refuses by name where there is no mark, and never reads it through `identityOf`. gen-scope's
+  `requireScope` and `sameKind` compare the mark alone: l0y's declared residue, routed to
+  `den-hoag-gzjf7`, not an instance of this rule. The mint itself is gen-identity's `hashIdentity`, injected; this library authors the
   sum that carries its result. Two other libraries define their own `identityOf` over it
   (gen-dispatch `lib/core/rule.nix`, and gen-types `lib/default.nix`, which adds an arm for foreign
   option-type records); gen-select imports this one. The parity of those definitions is
