@@ -28,14 +28,17 @@ let
   # (ADR-0014), so the identity boundary is the evaluation, not the repo. Internal: no consumer reads it.
   revision = "1";
 
-  # A refusal is recognised by its exact shape, so a slot payload that merely has a `left` is not one.
+  # A refusal is recognised by its exact shape, so a slot payload that merely has a `left` is not one:
+  # `refuse` always names its code by a string. Exported, so a consumer recognises a refusal through
+  # this predicate and never by a shape test of its own (den-hoag-s1ua7).
   isRefusal =
     v:
     builtins.isAttrs v
     && builtins.attrNames v == [ "left" ]
     && builtins.isAttrs v.left
-    && v.left ? code;
+    && builtins.isString (v.left.code or null);
   isTerm = v: builtins.isAttrs v && v ? __bodyTerm;
+  inherit (import ./intensional.nix) identityOf isExact;
   elem = builtins.elem;
   unique = builtins.foldl' (acc: x: if elem x acc then acc else acc ++ [ x ]) [ ];
   findFirst =
@@ -201,9 +204,9 @@ let
     c:
     if isTerm c then
       let
-        i = c.__mint;
+        i = identityOf c;
       in
-      if i ? minted then { term = i.minted; } else throw "term: a child term has no identity"
+      if isExact i then { term = i.minted; } else throw "term: a child term has no identity"
     else if builtins.isList c then
       map encodeChild c
     else if builtins.isAttrs c then
@@ -545,6 +548,13 @@ let
           refuse "term-vocabulary" {
             former = t.__bodyTerm;
             inherit vocabulary;
+          }
+        # A term is a record a former built, and every former mints it: `__mint` is one arm of the
+        # tagged sum. A record that spells `__bodyTerm` without that is author data, not a term.
+        else if !(builtins.isAttrs (t.__mint or null) && (t.__mint ? minted || t.__mint ? unmintable)) then
+          refuse "term-not-constructed" {
+            former = t.__bodyTerm;
+            remedy = "a term is built by the formers (`term.lit`, `term.attrs`, ...), which mint it; a record that spells `__bodyTerm` by hand is not a term";
           }
         else if t.__bodyTerm == "Apply" && !(isPrim (t.prim or null)) then
           refuse "term-vocabulary" {
@@ -1062,6 +1072,7 @@ in
     inertBudget
     checkInert
     isTerm
+    isRefusal
     children
     readCtxHeads
     checkTerm

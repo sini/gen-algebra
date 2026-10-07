@@ -584,6 +584,68 @@ in
     expr = code (checkTerm { } (term.apply "nope" [ ]));
     expected = "term-vocabulary";
   };
+  # den-hoag-s1ua7 / den-hoag-3nr2o: a refusal and a term are recognised exactly to their
+  # constructors. A record that spells `__bodyTerm` without a mint from the formers is refused by name;
+  # a `left` whose code is not a string is data; a mint-less child makes its parent unmintable by name.
+  hand-spelled-term-refused = {
+    expr =
+      map
+        (
+          m:
+          code (
+            checkTerm { } (
+              {
+                __bodyTerm = "Lit";
+                value = 1;
+              }
+              // m
+            )
+          )
+        )
+        [
+          { }
+          { __mint = { }; }
+          { __mint = 1; }
+        ];
+    expected = [
+      "term-not-constructed"
+      "term-not-constructed"
+      "term-not-constructed"
+    ];
+  };
+  hand-spelled-unknown-former-names-it = {
+    expr = (checkTerm { } { __bodyTerm = "Frobnicate"; }).left.witness.former;
+    expected = "Frobnicate";
+  };
+  is-refusal-exact-on-a-string-code = {
+    expr = map T.isRefusal [
+      { left.code = 105; }
+      { left = 1; }
+      { left.code = "x"; }
+      (checkTerm { } 1)
+    ];
+    expected = [
+      false
+      false
+      true
+      true
+    ];
+  };
+  attrs-over-int-code-left-is-a-term = {
+    expr = code (term.attrs { a.left.code = 105; });
+    expected = "admitted";
+  };
+  attrs-over-hand-spelled-child-unmintable = {
+    expr =
+      builtins.attrNames
+        (term.attrs {
+          x = {
+            __bodyTerm = "Lit";
+            value = 1;
+          };
+        }).__mint;
+    expected = [ "unmintable" ];
+  };
   readfrom-fn-target-refused = {
     expr = code (term.readFrom (x: x) [ ]);
     expected = "former-operand-type";

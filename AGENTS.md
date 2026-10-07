@@ -139,6 +139,12 @@ first line of each):
   option-type records); gen-select imports this one. The parity of those definitions is
   `den-hoag-xxybl`'s. **Home defaulted, reversible** (`den-hoag-4kh.53.53` OQ1, arm A): re-opened if
   `den-hoag-7gp66` OQ1 places the identity readers at gen-identity.
+- `__bodyTerm` — writer the term formers' `mk` (`lib/term.nix`); readers `isTerm` and `checkTerm` (same file); read by gen-aspects, gen-bind, gen-program and gen-rules:
+  the former tag of a body term. **A term is a record a former built; it carries `__mint`**, one arm of
+  the tagged sum above. `checkTerm` refuses a record that spells `__bodyTerm` without a `__mint`
+  carrying `minted` or `unmintable` as `term-not-constructed`, naming its `former` (den-hoag-s1ua7). A
+  refusal is recognised only by the `term` instance's exported `isRefusal`, exact to `refuse`'s shape
+  (`{ left = { code = <string>; witness; }; }`); a consumer tests neither sum by a shape of its own.
 
 ## The zero-inputs contract, and what it binds
 
