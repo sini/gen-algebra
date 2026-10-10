@@ -381,4 +381,32 @@ in
         sealed = boundary;
       };
     };
+
+  # ★ THE CLOSURES-FIRST PREFIX LEAVES A THROWING FIELD TO THE RECORD'S `==`. Finding the function-valued
+  # fields forces every field to WHNF, so without `tryEval` around each test a field that throws would
+  # refuse a pair the bare `==` decides on an earlier attribute. Reds on a build that forces the field
+  # bare. The control pair shares every field, so the cell is not green on a relation separating all.
+  flake.tests.intensional.test-a-throwing-field-is-left-to-the-record-equality =
+    let
+      r =
+        a: extra:
+        {
+          name = "p";
+          inherit a;
+          z = throw "a field with no value";
+        }
+        // extra;
+    in
+    {
+      expr = {
+        differ = conservativeEq (r 1 { }) (r 2 { });
+        differInSize = conservativeEq (r 1 { }) (r 1 { y = 1; });
+        decidesAtTheThrow = (builtins.tryEval (conservativeEq (r 1 { }) (r 1 { }))).success;
+      };
+      expected = {
+        differ = false;
+        differInSize = false;
+        decidesAtTheThrow = false;
+      };
+    };
 }

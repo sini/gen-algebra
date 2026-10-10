@@ -318,4 +318,135 @@ in
       msg = "^gen-algebra: markOf: the value carries no mark \\(no `__mint` with a `minted` arm\\); a set is not a value its producer minted. Decide with `hasMark` before demanding the mark.$";
     };
   };
+
+  # ★ THE WITNESS DECLARATION IS READ, AND A FORGED OR MALFORMED ONE IS REFUSED BY NAME. `w` is completed
+  # the way gen-types and gen-schema complete their values: a completion stamp, and a `check` published
+  # beside its witness. A `//` copy keeps the mark, so a copy that re-declares the witness must not be
+  # read as `holds`, and a declaration that is not a record of field names must refuse rather than
+  # reach a type error. Every cell carries the live control `conservativeEq w w`.
+  flake.testsError.witness-refusals =
+    let
+      inherit (genAlgebra) conservativeEq identityOf;
+      completed =
+        r:
+        let
+          s = r // {
+            self = _: s;
+            __witness = {
+              completion = "self";
+              checks.check = "checkWitness";
+            };
+          };
+        in
+        s;
+      check = {
+        __functor = self: self.fn;
+        fn = x: x == 1;
+      };
+      w = completed {
+        name = "w";
+        __mint.minted = "m:w";
+        inherit check;
+        checkWitness = check;
+      };
+      ctl = ok (_: conservativeEq w w) null true;
+      refusal = why: {
+        type = "ThrownError";
+        msg = "^gen-algebra: conservativeEq: `w' is not the value its producer completed: ${why}; build the change through its producer$";
+      };
+      malformed = fault: refusal "it carries a malformed witness declaration: ${fault}";
+    in
+    {
+      test-a-copy-is-refused-by-name = {
+        expr =
+          assert ctl;
+          conservativeEq w (w // { verify = _: null; });
+        expectedError = refusal "a `//` over it keeps its mark while changing what the mark stands for";
+      };
+      test-a-copy-redeclaring-a-completion-it-does-not-carry-is-refused-by-name = {
+        expr =
+          assert ctl;
+          conservativeEq w (
+            w
+            // {
+              verify = _: null;
+              __witness.completion = "nope";
+            }
+          );
+        expectedError = refusal "it declares its completion witness `nope' and carries no function there, so its mark's claim cannot be checked";
+      };
+      test-a-value-dropping-its-declared-completion-is-refused-by-name = {
+        expr =
+          assert ctl;
+          conservativeEq w (removeAttrs w [ "self" ]);
+        expectedError = refusal "it declares its completion witness `self' and carries no function there, so its mark's claim cannot be checked";
+      };
+      test-a-copy-declaring-no-completion-is-refused-by-name = {
+        expr =
+          assert ctl;
+          conservativeEq w (
+            w
+            // {
+              verify = _: null;
+              __witness = { };
+            }
+          );
+        expectedError = malformed "its `__witness` declares no `completion`, so its mark's claim cannot be checked";
+      };
+      test-a-null-declaration-is-refused-by-name = {
+        expr =
+          assert ctl;
+          conservativeEq w (
+            w
+            // {
+              verify = _: null;
+              __witness = null;
+            }
+          );
+        expectedError = malformed "its `__witness` is a null, not a record of field names";
+      };
+      test-a-completion-that-is-not-a-field-name-is-refused-by-name = {
+        expr =
+          assert ctl;
+          conservativeEq w (w // { __witness.completion = 5; });
+        expectedError = malformed "its `__witness.completion` is a int, not a field name";
+      };
+      test-a-check-witness-that-is-not-a-field-name-is-refused-by-name = {
+        expr =
+          assert ctl;
+          conservativeEq w (
+            w
+            // {
+              __witness = {
+                completion = "self";
+                checks.check = 5;
+              };
+            }
+          );
+        expectedError = malformed "its `__witness.checks` is not a record of field names";
+      };
+      test-checks-that-are-not-a-record-are-refused-by-name = {
+        expr =
+          assert ctl;
+          conservativeEq w (
+            w
+            // {
+              __witness = {
+                completion = "self";
+                checks = 5;
+              };
+            }
+          );
+        expectedError = malformed "its `__witness.checks` is not a record of field names";
+      };
+      test-identityOf-refuses-a-malformed-declaration-by-name = {
+        expr =
+          assert ok identityOf w { minted = "m:w"; };
+          identityOf (w // { __witness.checks = 5; });
+        expectedError = {
+          type = "ThrownError";
+          msg = "^gen-algebra: identityOf: `w' carries a malformed witness declaration: its `__witness.checks` is not a record of field names; ";
+        };
+      };
+    };
 }

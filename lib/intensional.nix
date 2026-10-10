@@ -78,9 +78,139 @@ let
     v.__mint.minted
       or (throw "gen-algebra: markOf: the value carries no mark (no `__mint` with a `minted` arm); a ${builtins.typeOf v} is not a value its producer minted. Decide with `hasMark` before demanding the mark.");
   sealsSomething = v: builtins.isAttrs (v.__sealed or null) && v.__sealed != { };
+
+  # ── the witness declaration: is the mark still a claim about THIS value? ──
+  #
+  # A mark is minted over the value its producer COMPLETED, and Nix `//` copies every slot it does
+  # not override, the mark included. So whether a carried mark still states the value's content is
+  # ADR-0034's minted condition read at DECISION time, and only the producer knows which of its
+  # fields witness it. A producer declares them in `__witness`, by field name, so this library reads
+  # the witnesses without knowing any vocabulary's spelling:
+  #
+  #   completion = "<field>"   the field holding `_: <the completed value>` (Bracha & Cook 1990 §2:
+  #                            a `//` copies the witness unchanged, so the copy's witness still
+  #                            returns the original). A value departing from it is REFUSED by name.
+  #   checks = { <field> = "<witness field>"; }
+  #                            a field published beside a witness holding the value the mark was
+  #                            minted over. A value whose field no longer holds its witness (a
+  #                            wrapper rewrote it) keeps its mark as a bucket label and is COMPARED.
+  #
+  # A value declaring nothing reads as before. A MARKED value's declaration names its `completion`:
+  # the mark's claim is checkable only through it, so a declaration without one, or naming a field the
+  # value does not carry as a function, is refused by name, never read as `holds` (otherwise a `//`
+  # that re-declares the witness would forge the stamp it guards). A declaration that is not a record
+  # of field names is refused by name too, so no shape of it reaches an uncatchable type error. A
+  # well-formed declaration is data, so it is inert under `==` and in every walker.
+  nameOf = v: if builtins.isString (v.name or null) then v.name else "<unnamed>";
+  declarationFault =
+    v:
+    let
+      w = v.__witness;
+    in
+    if !(v ? __witness) then
+      null
+    else if !(builtins.isAttrs w) then
+      "its `__witness` is a ${builtins.typeOf w}, not a record of field names"
+    else if w ? completion && !(builtins.isString w.completion) then
+      "its `__witness.completion` is a ${builtins.typeOf w.completion}, not a field name"
+    else if
+      w ? checks
+      && !(builtins.isAttrs w.checks && builtins.all builtins.isString (builtins.attrValues w.checks))
+    then
+      "its `__witness.checks` is not a record of field names"
+    else if hasMark v && !(w ? completion) then
+      "its `__witness` declares no `completion`, so its mark's claim cannot be checked"
+    else
+      null;
+  witnessOf =
+    v:
+    let
+      fault = declarationFault v;
+    in
+    if fault == null then
+      v.__witness or { }
+    else
+      throw "gen-algebra: identityOf: `${nameOf v}' carries a malformed witness declaration: ${fault}; its producer declares `__witness = { completion = \"<field>\"; checks = { <field> = \"<witness field>\"; }; }`";
+  rewritesWitnessed =
+    v:
+    let
+      cs = (witnessOf v).checks or { };
+    in
+    builtins.any (n: v ? ${n} && v ? ${cs.${n}} && v.${n} != v.${cs.${n}}) (builtins.attrNames cs);
+  # The stamp's decision: the completed value against the operand under `==`, descending through
+  # one-key slices and singleton cells where `==` throws (a shared throwing thunk is forced before the
+  # identity check on upstream Nix and Determinate and not on Lix). Two cells that both have no WHNF
+  # value agree.
+  stampAgrees =
+    let
+      defined = v: (builtins.tryEval (builtins.seq v true)).success;
+      cellAgrees =
+        ca: cb: va: vb:
+        let
+          r = builtins.tryEval (ca == cb);
+          da = defined va;
+          db = defined vb;
+        in
+        if r.success then
+          r.value
+        else if da && db then
+          descend va vb
+        else
+          !da && !db;
+      descend =
+        a: b:
+        if builtins.isAttrs a && builtins.isAttrs b then
+          let
+            names = builtins.attrNames a;
+            slice = n: builtins.intersectAttrs { ${n} = null; };
+          in
+          names == builtins.attrNames b
+          && builtins.all (n: cellAgrees (slice n a) (slice n b) a.${n} b.${n}) names
+        else if builtins.isList a && builtins.isList b then
+          let
+            ca = map (v: [ v ]) a;
+            cb = map (v: [ v ]) b;
+          in
+          builtins.length a == builtins.length b
+          && builtins.all (
+            i:
+            cellAgrees (builtins.elemAt ca i) (builtins.elemAt cb i) (builtins.elemAt a i) (builtins.elemAt b i)
+          ) (builtins.genList (i: i) (builtins.length a))
+        else
+          false;
+    in
+    a: b: cellAgrees a b a b;
+  # The verdict, a tagged sum with three arms: `holds`, `compared` (the mark is a bucket label) or
+  # `refused` (the value is not the one its producer completed).
+  standingOf =
+    v:
+    let
+      fault = declarationFault v;
+      declared = v ? __witness && v.__witness ? completion;
+      f = v.__witness.completion;
+    in
+    if fault != null then
+      { refused = "it carries a malformed witness declaration: ${fault}"; }
+    else if declared && !(v ? ${f} && builtins.isFunction v.${f}) then
+      {
+        refused = "it declares its completion witness `${f}' and carries no function there, so its mark's claim cannot be checked";
+      }
+    else if declared && !(stampAgrees (v.${f} null) v) then
+      { refused = "a `//` over it keeps its mark while changing what the mark stands for"; }
+    else if rewritesWitnessed v then
+      { compared = "a wrapper rewrote a field its mark was minted over"; }
+    else
+      { holds = true; };
+
   identityOf =
     v:
-    if hasMark v && sealsSomething v then
+    if hasMark v && rewritesWitnessed v then
+      {
+        unmintable = {
+          reason = "a wrapper rewrote a field its mark was minted over, so the mark no longer states its content";
+        };
+      }
+    else if hasMark v && sealsSomething v then
       {
         unmintable = {
           reason = "a mark beside sealed components, which it is blind to, is not an exact identity";
@@ -142,7 +272,55 @@ let
     && v.__mint ? unmintable
     && builtins.isAttrs v.__mint.unmintable
     && v.__mint.unmintable ? subject;
-  comparisonSubject = v: if hasDeclaredSubject v then v.__mint.unmintable.subject else v;
+  #
+  # ★ CLOSURES FIRST. Undeclared, the subject of a record is a two-element list: its function-valued
+  # fields, then the whole record. List `==` decides index 0 before index 1, and `==` on two functions
+  # answers without entering either closure, so two records whose closures differ decide `false`
+  # before `==` walks an attribute that may hold a back-edge (a nixpkgs record's `functor.type` across
+  # two lib instances recurses until the evaluator aborts uncatchably). The prefix is a sub-attrset of
+  # the record holding the same slots, so this is still one `==` over the whole reified value.
+  #
+  # ★ AN ENUMERATED VALUE MOVE, NOT AN ABORT. Finding the function-valued fields forces EVERY field to
+  # WHNF, inside `tryEval`, so a field that throws catchably is left out of the prefix and to the bare
+  # `==` after it. What the bare `==` would have decided, this decides the same, with two exceptions:
+  #   1. A derivation-shaped record (`type = "derivation"`): Nix `==` compares two of them by
+  #      `outPath` alone, and the prefix compares their closures first, so it decides FINER (`false`
+  #      where the bare `==` said `true`). ADR-0034 excludes every derivation from this relation.
+  #   2. A field whose WHNF errors UNCATCHABLY propagates where the bare `==` would have decided on
+  #      another attribute first: nixpkgs `lib` on Lix, whose `convertHash` names a builtin Lix
+  #      lacks, aborts here (`conservativeEq lib lib` answers `true` under the bare `==`).
+  # Where every closure slot is shared and the record's `==` reaches a back-edge before a
+  # difference, it aborts as the bare `==` does. A record with no function-valued field keeps the
+  # bare `==`.
+  closuresOf =
+    v:
+    builtins.intersectAttrs (builtins.listToAttrs (
+      map
+        (n: {
+          name = n;
+          value = null;
+        })
+        (
+          builtins.filter (
+            n:
+            let
+              r = builtins.tryEval (builtins.isFunction v.${n});
+            in
+            r.success && r.value
+          ) (builtins.attrNames v)
+        )
+    )) v;
+  comparisonSubject =
+    v:
+    if hasDeclaredSubject v then
+      v.__mint.unmintable.subject
+    else if builtins.isAttrs v then
+      [
+        (closuresOf v)
+        v
+      ]
+    else
+      v;
 
   # ── per-component preimage tags (c+), den-hoag-markof-partial-preimage-znfjq ──
   #
@@ -499,6 +677,12 @@ let
   # one half of it and COARSENS — it calls behaviourally distinct functions equal, which is the one
   # direction §2.3's guarantee forbids.
   #
+  # ★ THE PRODUCER'S WITNESSES ARE READ FIRST. Each operand's declared witnesses (`__witness`, above)
+  # give it a standing: `refused` on either operand (a `//` copy departing from what its producer
+  # completed, or a malformed or uncheckable declaration) throws a refusal by name; `compared` on
+  # either (a wrapper rewrote a field the mark was minted over) decides over `comparisonSubject`,
+  # because that mark is a bucket label; `holds` leaves the arms below to decide.
+  #
   # TWO ARMS, and over non-derivation operands neither merges more than Fig. 5 — Nix `==` compares
   # two `type = "derivation"` attrsets by `outPath` alone, so a derivation-shaped pair differing
   # only in `closure` compares EQUAL; ADR-0034 excludes every derivation. Minted values compare by digest, which is exact
@@ -518,7 +702,9 @@ let
   #
   # ★ THE FALL-THROUGH IS TOTAL OVER INERT OPERANDS, AND PARTIAL OVER TWO POPULATIONS — a caller
   # payload that refuses under any key (a catchable refusal), and a self-referential payload (an
-  # UNCATCHABLE evaluator abort). That is a
+  # UNCATCHABLE evaluator abort) whose closures are all shared, so `comparisonSubject`'s prefix does
+  # not decide before the record's `==` reaches the back-edge; where the closures differ, the prefix
+  # decides `false` first. That is a
   # property of structural equality over caller data, shared with any key site's bucket scan and with
   # gen-select's `selectorEq`, which rules the same boundary. Closing it is a BOUNDED walk, which
   # ADR-0034 gives the mint and not this clause; it is an open design question, not a local fix.
@@ -535,16 +721,24 @@ let
     let
       ia = identityOf a;
       ib = identityOf b;
+      sa = standingOf a;
+      sb = standingOf b;
+      bad = if sa ? refused then a else b;
+      why = if sa ? refused then sa.refused else sb.refused;
     in
-    if hasMark a && hasMark b && (sealsSomething a || sealsSomething b) then
+    if sa ? refused || sb ? refused then
+      throw "gen-algebra: conservativeEq: `${nameOf bad}' is not the value its producer completed: ${why}; build the change through its producer"
+    else if sa ? compared || sb ? compared then
+      comparisonSubject a == comparisonSubject b
+    else if hasMark a && hasMark b && (sealsSomething a || sealsSomething b) then
       sealedCollisionEq "conservativeEq"
         {
-          name = if builtins.isString (a.name or null) then a.name else "<unnamed>";
+          name = nameOf a;
           mark = a.__mint.minted;
           sealed = a.__sealed or { };
         }
         {
-          name = if builtins.isString (b.name or null) then b.name else "<unnamed>";
+          name = nameOf b;
           mark = b.__mint.minted;
           sealed = b.__sealed or { };
         }

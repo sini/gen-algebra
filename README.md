@@ -201,11 +201,43 @@ unmigrated pair on `name` alone would call two values at one program point with 
 equal, which Fig. 5 forbids. The name stays the unmigrated regime's bucket *label* at the key site
 (below) and never decides.
 
+**The producer's witnesses are read first.** A mark is minted over the value its producer
+completed, and a Nix `//` copies the mark with every other slot, so whether a carried mark still
+states the value is read when the relation decides. A producer declares which of its fields witness
+it, by field name, in `__witness`, beside `__mint`:
+
+```nix
+__witness = {
+  completion = "<field>";                     # the field holding `_: <the completed value>`
+  checks = { <field> = "<witness field>"; };  # a field published beside a witness of its value
+};
+```
+
+Each operand then reads as one of three standings. **Refused**: it departs from the value its
+completion witness returns (a `//` copy), it declares a completion witness it does not carry as a
+function, its mark comes with a declaration naming no `completion`, or the declaration is not a
+record of field names. Any of these throws a refusal by name. **Compared**: a declared `checks`
+field no longer holds its witness (a wrapper rewrote it), so the mark is only a bucket label, and
+the pair is decided over `comparisonSubject`; `identityOf` answers the compared arm for such a
+value. **Holds**: otherwise, and the arms above decide. A value declaring nothing holds. gen-types
+publishes its declaration as `typeWitness`, and gen-merge and gen-schema declare theirs where they
+complete a value.
+
+**Closures first.** An undeclared attrset's subject is `[ (closuresOf v) v ]`: its function-valued
+fields, then the whole record. List `==` decides the first element before the second, and `==` on
+two functions answers without entering either closure, so two records whose closures differ decide
+`false` before `==` can walk a back-edge (a nixpkgs record's `functor.type` across two lib
+instances). Finding the function-valued fields forces every field, inside `tryEval`, so a field that
+throws is left to the record's `==`. The value moves in two places: a derivation-shaped pair decides
+on its closures, which is finer than `outPath` alone, and a field whose evaluation fails
+uncatchably aborts where the bare `==` would have decided on another attribute first (nixpkgs `lib`
+on Lix, whose `convertHash` names a builtin Lix lacks).
+
 The fall-through is **total over inert attrset operands and partial over three populations**, the
 same boundary gen-select rules at `selectorEq`: a payload that refuses under any key surfaces its
-own catchable throw, and a self-referential payload aborts the evaluator uncatchably. Nothing is
-excluded: a value's fields are total data, and demanding an identity is gen-types' `idOf`, a
-function rather than a field.
+own catchable throw, and a self-referential payload whose closures are all shared aborts the
+evaluator uncatchably. Nothing is excluded: a value's fields are total data, and demanding an
+identity is gen-types' `idOf`, a function rather than a field.
 
 A component-wise conjunct is not the remedy. This design's component-list rule holds that a
 constructor's declared components name what the comparison's **subject** must be, and never a set of
