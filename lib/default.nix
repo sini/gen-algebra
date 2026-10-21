@@ -28,6 +28,8 @@ in
     isExact
     comparisonSubject
     hasDeclaredSubject
+    declaresSubject
+    subjectEntry
     sealedMarker
     preimageTagOf
     componentsPreimage

@@ -108,7 +108,12 @@ let
       w = v.__witness;
     in
     if !(v ? __witness) then
-      null
+      # a declared subject is a claim only its producer's completion can check, so a value carrying
+      # one without the witness is refused, never read as an undeclared record
+      if declaresSubject v then
+        "it declares a comparison subject and no `__witness`, so its subject's claim cannot be checked"
+      else
+        null
     else if !(builtins.isAttrs w) then
       "its `__witness` is a ${builtins.typeOf w}, not a record of field names"
     else if w ? completion && !(builtins.isString w.completion) then
@@ -120,6 +125,8 @@ let
       "its `__witness.checks` is not a record of field names"
     else if hasMark v && !(w ? completion) then
       "its `__witness` declares no `completion`, so its mark's claim cannot be checked"
+    else if declaresSubject v && !(w ? completion) then
+      "its `__witness` declares no `completion`, so its subject's claim cannot be checked"
     else
       null;
   witnessOf =
@@ -264,7 +271,7 @@ let
   # DIFFERENT KEY NAMES, and Nix `==` decides on the name set before forcing any value. Two sealed
   # values carry inert payloads under one name, so nothing forces there. The one path that does force
   # a mint is a minted-against-minted comparison, and that arm never reaches here: it compares digests.
-  hasDeclaredSubject =
+  declaresSubject =
     v:
     builtins.isAttrs v
     && v ? __mint
@@ -272,6 +279,29 @@ let
     && v.__mint ? unmintable
     && builtins.isAttrs v.__mint.unmintable
     && v.__mint.unmintable ? subject;
+  hasDeclaredSubject = v: declaresSubject v && (standingOf v) ? holds;
+  # ★ A DEPARTED CONSTRUCTION IS NOT AN UNDECLARED ONE. A reader that hands a declared subject on
+  # (`componentsPreimage`, gen-types `memberSubject`) hands `entry` on while the value holds its
+  # standing, and otherwise `entry` wrapped with the departure's reason, which `sealedCollisionEq`
+  # reads: never the reified record, whose `==` can walk a back-edge uncatchably.
+  subjectEntry =
+    v: entry:
+    let
+      st = standingOf v;
+    in
+    if st ? holds then
+      entry
+    else
+      {
+        __departed = st.refused or st.compared;
+        __subject = entry;
+      };
+  isDepartedEntry =
+    v:
+    let
+      r = builtins.tryEval (builtins.isAttrs v && v ? __departed && v ? __subject);
+    in
+    r.success && r.value;
   #
   # ★ CLOSURES FIRST. Undeclared, the subject of a record is a two-element list: its function-valued
   # fields, then the whole record. List `==` decides index 0 before index 1, and `==` on two functions
@@ -310,9 +340,9 @@ let
           ) (builtins.attrNames v)
         )
     )) v;
-  comparisonSubject =
-    v:
-    if hasDeclaredSubject v then
+  subjectAt =
+    standing: v:
+    if declaresSubject v && standing ? holds then
       v.__mint.unmintable.subject
     else if builtins.isAttrs v then
       [
@@ -321,6 +351,19 @@ let
       ]
     else
       v;
+  # A projection has no second operand, so a declared value that does not hold its standing has no
+  # admissible answer: its stale subject is unsound and its record is the uncatchable arm.
+  comparisonSubject =
+    v:
+    let
+      st = standingOf v;
+    in
+    if !(declaresSubject v) then
+      subjectAt { } v
+    else if st ? holds then
+      v.__mint.unmintable.subject
+    else
+      throw "gen-algebra: comparisonSubject: `${nameOf v}' is not the value its producer completed: ${st.refused or st.compared}; build the change through its producer";
 
   # ── per-component preimage tags (c+), den-hoag-markof-partial-preimage-znfjq ──
   #
@@ -394,6 +437,30 @@ let
   #     over a sealed component) enters by its mark AND hands its `__sealed` over under its path.
   #     Its mark is blind to what it sealed, so without this a parent over `listOf (typedef R1)` and
   #     one over `listOf (typedef R9)` would share a mark and an empty sealed map and decide `true`.
+  #     A propagated map holding a departed entry is handed up as one departed entry over the map
+  #     with each departed entry stripped to its subject (`hoistDeparted`), so `sealedCollisionEq`,
+  #     which reads the top level, refuses it at any depth: each level's map is one call's output.
+  hoistDeparted =
+    m:
+    let
+      departed = builtins.filter (k: isDepartedEntry m.${k}) (builtins.attrNames m);
+    in
+    if departed == [ ] then
+      m
+    else
+      {
+        __departed = m.${builtins.head departed}.__departed;
+        __subject =
+          m
+          // builtins.mapAttrs (_: v: v.__subject) (
+            builtins.intersectAttrs (builtins.listToAttrs (
+              map (k: {
+                name = k;
+                value = null;
+              }) departed
+            )) m
+          );
+      };
   componentsPreimage =
     hashIdentity: components0:
     let
@@ -448,9 +515,13 @@ let
           # that drops the optimisation compares two shared-lambda components unequal, and the
           # result is a refusal by name, never a false admit.
           map (
-            c: if hasDeclaredSubject c.value then c // { value.compared = comparisonSubject c.value; } else c
+            c:
+            if declaresSubject c.value then
+              c // { value = subjectEntry c.value { compared = c.value.__mint.unmintable.subject; }; }
+            else
+              c
           ) (builtins.filter (c: c.tag == sealedMarker) tagged)
-          ++ map (c: c // { value = c.value.__sealed; }) (builtins.filter propagates tagged)
+          ++ map (c: c // { value = hoistDeparted c.value.__sealed; }) (builtins.filter propagates tagged)
         );
       };
 
@@ -527,23 +598,64 @@ let
       throw "${site}: sealedCollisionEq expects two { name; mark; sealed = { <component> = <subject>; }; }"
     else if a.mark != b.mark then
       false
-    else if eq a.sealed b.sealed then
-      true
-    else if isEvidence eq a.sealed b.sealed then
-      false
     else
       let
-        # Each component is compared inside a one-key slice (`intersectAttrs` carries the slot): a
-        # bare `a.sealed.${k}` argument is a fresh thunk, so upstream Nix would name a component
-        # holding one shared lambda as differing, and Lix would not. A key `b` lacks slices to `{ }`.
-        slice = k: builtins.intersectAttrs { ${k} = null; };
-        differing = builtins.filter (k: !(eq (slice k a.sealed) (slice k b.sealed))) (
-          builtins.attrNames a.sealed
-        );
+        # a departed component is decided over the subject it carries; it can only be refused, never
+        # admitted, at an equal one (`subjectEntry`)
+        departed = builtins.filter (
+          k: isDepartedEntry (a.sealed.${k} or null) || isDepartedEntry (b.sealed.${k} or null)
+        ) (builtins.attrNames (a.sealed // b.sealed));
+        # only the departed keys are rebuilt: `//` keeps every other component's slot, which `==`'s
+        # value-identity shortcut reads (a rebuilt binding is a fresh thunk)
+        strip =
+          m:
+          m
+          // builtins.mapAttrs (_: v: if isDepartedEntry v then v.__subject else v) (
+            builtins.intersectAttrs (builtins.listToAttrs (
+              map (k: {
+                name = k;
+                value = null;
+              }) departed
+            )) m
+          );
+        sa = strip a.sealed;
+        sb = strip b.sealed;
+        reasonAt =
+          k:
+          if isDepartedEntry (a.sealed.${k} or null) then
+            a.sealed.${k}.__departed
+          else
+            b.sealed.${k}.__departed;
       in
-      throw "${site}: two declarations of '${a.name}' mint one identity and are unequal only at sealed component(s) ${
-        builtins.concatStringsSep ", " (map (k: "'${k}'") differing)
-      }: a sealed component is compared by its seal, the whole value under Nix `==`, where two separately built functions are never equal, so two separate constructions are refused even where the values they compute are equal; a sealed component has no identity, because identity is minted from inert structure alone: migrate it to a first-order term, a registered constructor over inert arguments, so that it mints";
+      if eq sa sb then
+        if departed == [ ] then
+          true
+        else
+          throw "${site}: '${a.name}' holds component(s) ${
+            builtins.concatStringsSep ", " (map (k: "'${k}'") departed)
+          } that are not the value their producer completed: ${reasonAt (builtins.head departed)}; build the change through its producer"
+      else if isEvidence eq sa sb then
+        false
+      else
+        sealedRefusal site a.name sa sb;
+  sealedRefusal =
+    site: name: sa: sb:
+    let
+      eq =
+        x: y:
+        let
+          r = builtins.tryEval (x == y);
+        in
+        r.success && r.value;
+      # Each component is compared inside a one-key slice (`intersectAttrs` carries the slot): a
+      # bare `a.sealed.${k}` argument is a fresh thunk, so upstream Nix would name a component
+      # holding one shared lambda as differing, and Lix would not. A key `b` lacks slices to `{ }`.
+      slice = k: builtins.intersectAttrs { ${k} = null; };
+      differing = builtins.filter (k: !(eq (slice k sa) (slice k sb))) (builtins.attrNames sa);
+    in
+    throw "${site}: two declarations of '${name}' mint one identity and are unequal only at sealed component(s) ${
+      builtins.concatStringsSep ", " (map (k: "'${k}'") differing)
+    }: a sealed component is compared by its seal, the whole value under Nix `==`, where two separately built functions are never equal, so two separate constructions are refused even where the values they compute are equal; a sealed component has no identity, because identity is minted from inert structure alone: migrate it to a first-order term, a registered constructor over inert arguments, so that it mints";
 
   # ── the encoder ──
   #
@@ -552,8 +664,8 @@ let
   # constructor, the associated right-hand side of the data declaration is executed". The behaviour is
   # looked up BY CONSTRUCTOR at forcing, out of the declaration, so the operands can be read before
   # anything is forced — Lorenzen's `debug-show` prints a lazy constructor without forcing further
-  # evaluation. That is `{ ctor; args; }` inert with `fn = registry.members.<ctor> args` resolved only
-  # at demand, and it is why `closure` needs no reification of its own: the operands ARE the value.
+  # evaluation. That is `{ ctor; args; }` inert with `registry.members.<ctor> args` applied only at
+  # demand, through `__functor`, and it is why `closure` needs no reification of its own: the operands ARE the value.
   #
   # WHERE THIS FORM IS OPEN AND LORENZEN'S IS CLOSED — which is what puts `revision` in the coordinate
   # below. §8 names the closure as a limitation: lazy constructors "have to be declared up-front in the
@@ -616,60 +728,70 @@ let
     else if !(registry.members ? ${ctor}) then
       throw "intensional: unknown constructor '${ctor}'"
     else
-      {
-        inherit ctor args;
-
-        # ★ `name` DOES EXACTLY ONE JOB — IT ANSWERS A SHAPE GUARD — AND IT IS NEVER A KEY. It is
-        # Palmer's `itsIdentify` slot, and what changes here is the program point's SOURCE:
-        # caller-supplied becomes registry-derived. Four shipped guards conjoin on `v ? name`, so
-        # dropping the field would make an encoder-built value inadmissible everywhere; keeping it
-        # without saying which job it does is what let consumers key on it.
-        #
-        # ★ `name = ctor` IS CONSTANT PER CONSTRUCTOR BY DESIGN — that constancy is what a program
-        # point IS. A consumer that keys on `name` alone is therefore shipping Palmer's first
-        # conjunct without the second, which is the defect this construction exists to remove: the
-        # KEY job belongs to the mint, and every key site reads it through `identityOf`.
-        #
-        # `name` is NEVER HASHED. The program point is already in the coordinate as `ctor`, so
-        # hashing it would double-count. Def 5.7(3) is not re-opened by deriving it: the hole was a
-        # CALLER-SUPPLIED name letting two bodies share one point, and a derived name is fixed by the
-        # registry — same name plus same registry implies same builder implies same body. Across
-        # registries names may collide while identities cannot.
-        name = ctor;
-
-        # The reified closure keeps its field name, so every shipped shape guard admits an
-        # encoder-built value. It IS `args`: there is no second thing to under-supply.
-        closure = args;
-
-        # The forcing step, and the ONLY place behaviour enters the value: Lorenzen's "associated
-        # right-hand side of the data declaration", looked up by constructor when demand arrives.
-        # No other field forces it — not `name`, not `closure`, not the mint's preimage — so the
-        # operands stay readable on a value nobody has applied.
+      let
         fn = registry.members.${ctor} args;
+        self = {
+          inherit ctor args;
 
-        # ★ COMPARED, NEVER MINTED (den-hoag-hhki8; ADR-0034's compared regime). The coordinate above
-        # discharges only CONDITIONALLY, on the declared `revision`, so a digest over it is fit as a
-        # decision predicate and never as a key. The value therefore carries no mint: it DECLARES its
-        # comparison subject, the registry coordinate, the constructor and the inert argument value
-        # (ADR-0034's component-list clause: "The constructor's declared component list names what that
-        # comparison's SUBJECT must be"). Every key site reads the tag through `identityOf` and finds no
-        # exact identity: `isExact` is `false`, a composite tags it with `sealedMarker`, and
-        # gen-dispatch's `taggedHandle` answers no handle. Every decision reads `subject` through
-        # `comparisonSubject`, so two constructions of one term decide `true` and a different argument,
-        # member set or revision decides `false`. No digest is computed.
-        __mint = {
-          unmintable = {
-            inherit ctor;
-            reason = "a registered construction is compared by its declared subject (registry coordinate, constructor, inert arguments), never minted: its coordinate discharges only on the declared `revision`";
-            subject = {
-              registry = registryCoordOf registry;
-              inherit ctor args;
+          # ★ `name` DOES EXACTLY ONE JOB — IT ANSWERS A SHAPE GUARD — AND IT IS NEVER A KEY. It is
+          # Palmer's `itsIdentify` slot, and what changes here is the program point's SOURCE:
+          # caller-supplied becomes registry-derived. Four shipped guards conjoin on `v ? name`, so
+          # dropping the field would make an encoder-built value inadmissible everywhere; keeping it
+          # without saying which job it does is what let consumers key on it.
+          #
+          # ★ `name = ctor` IS CONSTANT PER CONSTRUCTOR BY DESIGN — that constancy is what a program
+          # point IS. A consumer that keys on `name` alone is therefore shipping Palmer's first
+          # conjunct without the second, which is the defect this construction exists to remove: the
+          # KEY job belongs to the mint, and every key site reads it through `identityOf`.
+          #
+          # `name` is NEVER HASHED. The program point is already in the coordinate as `ctor`, so
+          # hashing it would double-count. Def 5.7(3) is not re-opened by deriving it: the hole was a
+          # CALLER-SUPPLIED name letting two bodies share one point, and a derived name is fixed by the
+          # registry — same name plus same registry implies same builder implies same body. Across
+          # registries names may collide while identities cannot.
+          name = ctor;
+
+          # The reified closure keeps its field name, so every shipped shape guard admits an
+          # encoder-built value. It IS `args`: there is no second thing to under-supply.
+          closure = args;
+
+          # ★ COMPARED, NEVER MINTED (den-hoag-hhki8; ADR-0034's compared regime). The coordinate above
+          # discharges only CONDITIONALLY, on the declared `revision`, so a digest over it is fit as a
+          # decision predicate and never as a key. The value therefore carries no mint: it DECLARES its
+          # comparison subject, the registry coordinate, the constructor and the inert argument value
+          # (ADR-0034's component-list clause: "The constructor's declared component list names what that
+          # comparison's SUBJECT must be"). Every key site reads the tag through `identityOf` and finds no
+          # exact identity: `isExact` is `false`, a composite tags it with `sealedMarker`, and
+          # gen-dispatch's `taggedHandle` answers no handle. Every decision reads `subject` through
+          # `comparisonSubject`, so two constructions of one term decide `true` and a different argument,
+          # member set or revision decides `false`. No digest is computed.
+          __mint = {
+            unmintable = {
+              inherit ctor;
+              reason = "a registered construction is compared by its declared subject (registry coordinate, constructor, inert arguments), never minted: its coordinate discharges only on the declared `revision`";
+              subject = {
+                registry = registryCoordOf registry;
+                inherit ctor args;
+              };
             };
           };
-        };
 
-        __functor = self: self.fn;
-      };
+          # The forcing step, and the ONLY place behaviour enters the value: Lorenzen's "associated
+          # right-hand side of the data declaration", looked up by constructor when demand arrives.
+          # No other field forces it — not `name`, not `closure`, not the mint's preimage — so the
+          # operands stay readable on a value nobody has applied. The builder application is a `let`
+          # binding, never a slot: Nix and Determinate force a slot before `==`'s pointer shortcut, so a
+          # stored application would be applied by the stamp's comparison.
+          __functor = _: fn;
+          # the completion witness: a `//` copy still returns this value, so `standingOf` tells a
+          # departed copy from the value completed here
+          __intensionalSelf = _: self;
+          __witness = {
+            completion = "__intensionalSelf";
+          };
+        };
+      in
+      self;
 
   # CONSERVATIVE EQUALITY — Palmer's own term (§2.3, §5.3, §8). "Intensional" qualifies the
   # FUNCTION and never the equality, and the misnomer is what read as a licence to compare intension
@@ -726,10 +848,16 @@ let
       bad = if sa ? refused then a else b;
       why = if sa ? refused then sa.refused else sb.refused;
     in
-    if sa ? refused || sb ? refused then
+    # two declared subjects that differ are two values that differ (the subject is inert): `false`,
+    # before either stamp is read; a stamp is owed only where the answer could be a wrong `true`
+    if
+      declaresSubject a && declaresSubject b && a.__mint.unmintable.subject != b.__mint.unmintable.subject
+    then
+      false
+    else if sa ? refused || sb ? refused then
       throw "gen-algebra: conservativeEq: `${nameOf bad}' is not the value its producer completed: ${why}; build the change through its producer"
     else if sa ? compared || sb ? compared then
-      comparisonSubject a == comparisonSubject b
+      subjectAt sa a == subjectAt sb b
     else if hasMark a && hasMark b && (sealsSomething a || sealsSomething b) then
       sealedCollisionEq "conservativeEq"
         {
@@ -745,7 +873,7 @@ let
     else if ia ? minted && ib ? minted then
       ia.minted == ib.minted
     else
-      comparisonSubject a == comparisonSubject b;
+      subjectAt sa a == subjectAt sb b;
 in
 {
   inherit
@@ -758,6 +886,8 @@ in
     isExact
     comparisonSubject
     hasDeclaredSubject
+    declaresSubject
+    subjectEntry
     sealedMarker
     preimageTagOf
     componentsPreimage

@@ -150,7 +150,7 @@ one program point. Here both are derived: `name = ctor`, `closure = args`.
 
 **The registry construction is Lorenzen's lazy constructor** (§1). A lazy constructor holds inert
 first-order operands and no behaviour; the behaviour is *"the associated right-hand side of the data
-declaration"*, looked up by constructor when forcing arrives. `{ ctor; args; }` is inert, `fn = registry.members.<ctor> args` resolves only at demand, and no other field forces it — so the operands
+declaration"*, looked up by constructor when forcing arrives. `{ ctor; args; }` is inert, `registry.members.<ctor> args` is applied only at demand, through `__functor`, and no other field forces it — so the operands
 are readable on a value nobody has applied, as Lorenzen's `debug-show` reads a lazy constructor
 without forcing it. Where the two part company is openness: §8 records that lazy constructors *"have
 to be declared up-front in the data type definition"*, so one declaration site fixes the whole map and
