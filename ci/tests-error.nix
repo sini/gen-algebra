@@ -449,4 +449,172 @@ in
         };
       };
     };
+
+  # ★ A `//` COPY OF A REGISTERED CONSTRUCTION IS NOT THE VALUE ITS PRODUCER COMPLETED (den-hoag-28dnv).
+  # `mkIntensional` declares its completion witness, so a copy that keeps the declared subject while
+  # changing the value is refused by name, never decided by the subject it carried over. One cell per
+  # `//` shape: an extension, another construction's subject carried over (the field set unchanged), an
+  # operand rewritten, the behaviour rewritten. On the component route (`componentsPreimage` into
+  # `sealedCollisionEq`) a departed construction is refused at an EQUAL subject, the pair `x` against
+  # itself and two self-including extensions included, never compared as its record. Every cell carries
+  # the live control: two constructions of one term decide `true`.
+  flake.testsError.construction-departures =
+    let
+      inherit (genAlgebra)
+        conservativeEq
+        comparisonSubject
+        componentsPreimage
+        sealedCollisionEq
+        ;
+      mk = genAlgebra.mkIntensional genIdentity.hashIdentity {
+        revision = 1;
+        members.mk = a: { marks = [ (toString a) ]; };
+      } "mk";
+      t1 = mk 1;
+      t2 = mk 2;
+      x = t1 // {
+        note = "x";
+      };
+      selfIncluding =
+        let
+          s = t1 // {
+            includes = [ s ];
+          };
+        in
+        s;
+      ctl = ok (_: conservativeEq t1 (mk 1)) null true;
+      compCtl = ok (_: sealedCollisionEq "probe" (composite t1) (composite (mk 1))) null true;
+      departure = {
+        type = "ThrownError";
+        msg = "^probe: 'k' holds component\\(s\\) 'c' that are not the value their producer completed: a `//` over it keeps its mark while changing what the mark stands for; build the change through its producer$";
+      };
+      refusal = {
+        type = "ThrownError";
+        msg = "^gen-algebra: conservativeEq: `mk' is not the value its producer completed: a `//` over it keeps its mark while changing what the mark stands for; build the change through its producer$";
+      };
+      composite =
+        v:
+        let
+          p = componentsPreimage genIdentity.hashIdentity [
+            {
+              path = [ "c" ];
+              value = v;
+            }
+          ];
+        in
+        {
+          name = "k";
+          mark = genIdentity.hashIdentity "k" [ "tags" ] (_: p.tags);
+          inherit (p) sealed;
+        };
+      # a minted component carrying a sealed map, the shape a type over a type hands up
+      propagating = v: {
+        __mint.minted = "m";
+        __sealed = (composite v).sealed;
+      };
+    in
+    {
+      test-two-extensions-of-one-construction-are-refused-by-name = {
+        expr =
+          assert ctl;
+          conservativeEq (t1 // { includes = [ "A" ]; }) (t1 // { includes = [ "B" ]; });
+        expectedError = refusal;
+      };
+      test-another-constructions-subject-carried-over-is-refused-by-name = {
+        expr =
+          assert ctl;
+          conservativeEq t1 (t2 // { inherit (t1) __mint; });
+        expectedError = refusal;
+      };
+      test-a-rewritten-operand-is-refused-by-name = {
+        expr =
+          assert ctl;
+          conservativeEq t1 (t1 // { args = 2; });
+        expectedError = refusal;
+      };
+      test-a-rewritten-behaviour-is-refused-by-name = {
+        expr =
+          assert ctl;
+          conservativeEq t1 (t1 // { __functor = _: _: { marks = [ "other" ]; }; });
+        expectedError = refusal;
+      };
+      test-a-departed-component-against-itself-is-refused-by-name = {
+        expr =
+          assert compCtl;
+          sealedCollisionEq "probe" (composite x) (composite x);
+        expectedError = departure;
+      };
+      test-two-equal-departed-components-are-refused-by-name = {
+        expr =
+          assert compCtl;
+          sealedCollisionEq "probe" (composite (t1 // { note = "x"; })) (composite (t1 // { note = "x"; }));
+        expectedError = departure;
+      };
+      test-two-self-including-departed-components-are-refused-by-name = {
+        expr =
+          assert compCtl;
+          sealedCollisionEq "probe" (composite selfIncluding) (
+            composite (
+              let
+                s = t1 // {
+                  includes = [ s ];
+                };
+              in
+              s
+            )
+          );
+        expectedError = departure;
+      };
+      test-a-rewritten-operand-is-refused-by-name-on-the-component-route = {
+        expr =
+          assert compCtl;
+          sealedCollisionEq "probe" (composite t1) (composite (t1 // { args = 2; }));
+        expectedError = departure;
+      };
+      # one level down: a minted component propagates a sealed map holding the departed entry
+      test-a-departed-component-one-level-down-is-refused-by-name = {
+        expr =
+          assert compCtl;
+          sealedCollisionEq "probe" (composite (propagating (t1 // { includes = [ "A" ]; }))) (
+            composite (propagating (t1 // { includes = [ "B" ]; }))
+          );
+        expectedError = departure;
+      };
+      # a projection has no second operand: a departed value's subject is refused, never its record
+      test-the-subject-of-a-departed-construction-is-refused-by-name = {
+        expr =
+          assert ctl;
+          comparisonSubject selfIncluding == comparisonSubject (
+            let
+              s = t1 // {
+                includes = [ s ];
+              };
+            in
+            s
+          );
+        expectedError = {
+          type = "ThrownError";
+          msg = "^gen-algebra: comparisonSubject: `mk' is not the value its producer completed: a `//` over it keeps its mark while changing what the mark stands for; build the change through its producer$";
+        };
+      };
+      # the witness slot removed: a declared subject without it is refused, never read as a record
+      test-a-declared-subject-without-its-witness-is-refused-by-name = {
+        expr =
+          assert ctl;
+          conservativeEq (removeAttrs selfIncluding [ "__witness" ]) (
+            removeAttrs (
+              let
+                s = t1 // {
+                  includes = [ s ];
+                };
+              in
+              s
+            ) [ "__witness" ]
+          );
+        expectedError = {
+          type = "ThrownError";
+          msg = "^gen-algebra: conservativeEq: `mk' is not the value its producer completed: it carries a malformed witness declaration: it declares a comparison subject and no `__witness`, so its subject's claim cannot be checked; build the change through its producer$";
+        };
+      };
+    };
 }
