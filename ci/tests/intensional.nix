@@ -409,4 +409,89 @@ in
         decidesAtTheThrow = false;
       };
     };
+
+  # ★ THE COMPLETION WITNESS KEEPS WHAT THE ENCODER PROMISED (den-hoag-28dnv). Honest constructions still
+  # decide by their declared subject, `hasDeclaredSubject` answers only for a value its producer completed,
+  # and the comparison never applies a builder: the registry below aborts if it is, and an abort is
+  # uncatchable, so a build that forces the behaviour reds the whole suite rather than this cell.
+  flake.tests.intensional.test-a-completed-construction-keeps-its-subject-and-is-not-applied =
+    let
+      mk = genAlgebra.mkIntensional genIdentity.hashIdentity {
+        revision = 1;
+        members.mk = a: { marks = [ (toString a) ]; };
+      } "mk";
+      ab = genAlgebra.mkIntensional genIdentity.hashIdentity {
+        revision = 1;
+        members.x = _: abort "a comparison applied a builder";
+      } "x";
+      t1 = mk 1;
+      composite =
+        v:
+        let
+          p = genAlgebra.componentsPreimage genIdentity.hashIdentity [
+            {
+              path = [ "c" ];
+              value = v;
+            }
+          ];
+        in
+        {
+          name = "k";
+          mark = genIdentity.hashIdentity "k" [ "tags" ] (_: p.tags);
+          inherit (p) sealed;
+        };
+      propagating = v: {
+        __mint.minted = "m";
+        __sealed = (composite v).sealed;
+      };
+    in
+    {
+      expr = {
+        twoConstructions = conservativeEq t1 (mk 1);
+        reflexive = conservativeEq t1 t1;
+        emptyUpdate = conservativeEq t1 (t1 // { });
+        differingArgs = conservativeEq t1 (mk 2);
+        declared = genAlgebra.hasDeclaredSubject t1;
+        departedDeclared = genAlgebra.hasDeclaredSubject (t1 // { includes = [ "A" ]; });
+        componentDeclared =
+          (genAlgebra.componentsPreimage genIdentity.hashIdentity [
+            {
+              path = [ "c" ];
+              value = t1 // {
+                args = 2;
+              };
+            }
+          ]).sealed.c
+            ? compared;
+        # unequal subjects decide `false` before any stamp: a departed copy is never another term
+        departedAgainstAnotherTerm = conservativeEq (t1 // { note = "x"; }) (mk 2);
+        departedComponentAgainstAnotherTerm = genAlgebra.sealedCollisionEq "probe" (composite (
+          t1 // { note = "x"; }
+        )) (composite (mk 2));
+        # one level down, through a minted component's propagated sealed map
+        propagatedHonest = genAlgebra.sealedCollisionEq "probe" (composite (propagating t1)) (
+          composite (propagating (mk 1))
+        );
+        departedPropagatedAgainstAnotherTerm = genAlgebra.sealedCollisionEq "probe" (composite (
+          propagating (t1 // { note = "x"; })
+        )) (composite (propagating (mk 2)));
+        honestSubject = genAlgebra.comparisonSubject t1 == genAlgebra.comparisonSubject (mk 1);
+        notApplied = conservativeEq (ab null) (ab null);
+      };
+      expected = {
+        twoConstructions = true;
+        reflexive = true;
+        emptyUpdate = true;
+        differingArgs = false;
+        declared = true;
+        departedDeclared = false;
+        componentDeclared = false;
+        departedAgainstAnotherTerm = false;
+        departedComponentAgainstAnotherTerm = false;
+        propagatedHonest = true;
+        departedPropagatedAgainstAnotherTerm = false;
+        honestSubject = true;
+        notApplied = true;
+      };
+    };
 }
