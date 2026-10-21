@@ -125,7 +125,7 @@ let
       "its `__witness.checks` is not a record of field names"
     else if hasMark v && !(w ? completion) then
       "its `__witness` declares no `completion`, so its mark's claim cannot be checked"
-    else if declaresSubject v && !(w ? completion) then
+    else if !(w ? completion) && declaresSubject v then
       "its `__witness` declares no `completion`, so its subject's claim cannot be checked"
     else
       null;
