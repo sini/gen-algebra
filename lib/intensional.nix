@@ -355,8 +355,18 @@ let
   sealedMarker = {
     sealed = true;
   };
+  # `null` and `[ ]` are most of a kind's inert components (an absent function, an empty collection,
+  # no opaque module), and each tag is the mint's answer for a constant: minted once per mint and
+  # shared, byte-identical to minting it per component (den-hoag-a7c9r). A caller sharing the
+  # partial application (`preimageTagOf hashIdentity`, `componentsPreimage hashIdentity`) shares them.
   preimageTagOf =
-    hashIdentity: v:
+    hashIdentity:
+    let
+      inertOf = v: { inert = hashIdentity "component" [ "value" ] (_: v); };
+      nullTag = inertOf null;
+      emptyListTag = inertOf [ ];
+    in
+    v:
     let
       carriesMint = builtins.tryEval (builtins.isAttrs v && v ? __mint);
     in
@@ -373,6 +383,10 @@ let
         { inherit (i) minted; }
       else
         sealedMarker
+    else if v == null then
+      nullTag
+    else if v == [ ] then
+      emptyListTag
     else
       let
         attempt = builtins.tryEval (hashIdentity "component" [ "value" ] (_: v));
@@ -395,7 +409,11 @@ let
   #     Its mark is blind to what it sealed, so without this a parent over `listOf (typedef R1)` and
   #     one over `listOf (typedef R9)` would share a mark and an empty sealed map and decide `true`.
   componentsPreimage =
-    hashIdentity: components0:
+    hashIdentity:
+    let
+      tagOf = preimageTagOf hashIdentity;
+    in
+    components0:
     let
       propagates =
         c: c.tag ? minted && builtins.isAttrs (c.value.__sealed or null) && c.value.__sealed != { };
@@ -422,7 +440,7 @@ let
           name = builtins.concatStringsSep "." (
             map (builtins.replaceStrings [ "~" "." ] [ "~0" "~1" ]) c.path
           );
-          tag = if c.sealed or false then sealedMarker else preimageTagOf hashIdentity c.value;
+          tag = if c.sealed or false then sealedMarker else tagOf c.value;
         }
       ) components;
       tags = builtins.listToAttrs (
