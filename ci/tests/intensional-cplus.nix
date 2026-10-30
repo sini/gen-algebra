@@ -83,6 +83,38 @@ in
         partial = sealedMarker;
       };
     };
+    # The constant tags minted once per partial application (den-hoag-a7c9r) are the mint's own answer
+    # for `null` and `[ ]`, through both entries.
+    test-constant-tags-are-the-mints-answer = {
+      expr =
+        let
+          inert = v: { inert = genIdentity.hashIdentity "component" [ "value" ] (_: v); };
+          p = componentsPreimage genIdentity.hashIdentity [
+            {
+              path = [ "n" ];
+              value = null;
+            }
+            {
+              path = [ "l" ];
+              value = [ ];
+            }
+          ];
+        in
+        [
+          (tag null == inert null)
+          (tag [ ] == inert [ ])
+          (p.tags.n == inert null)
+          (p.tags.l == inert [ ])
+          (tag null != tag [ ])
+        ];
+      expected = [
+        true
+        true
+        true
+        true
+        true
+      ];
+    };
     # A constructor-declared sealed component is tagged without trying; only sealed components
     # have subjects; a duplicated path is refused rather than dropped.
     test-components-preimage = {
