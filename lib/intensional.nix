@@ -155,15 +155,15 @@ let
         ca: cb: va: vb:
         let
           r = builtins.tryEval (ca == cb);
-          da = defined va;
-          db = defined vb;
         in
         if r.success then
           r.value
-        else if da && db then
-          descend va vb
         else
-          !da && !db;
+          let
+            da = defined va;
+            db = defined vb;
+          in
+          if da && db then descend va vb else !da && !db;
       descend =
         a: b:
         if builtins.isAttrs a && builtins.isAttrs b then
@@ -616,6 +616,20 @@ let
       throw "${site}: sealedCollisionEq expects two { name; mark; sealed = { <component> = <subject>; }; }"
     else if a.mark != b.mark then
       false
+    else if a.sealed == { } && b.sealed == { } then
+      true
+    else if eq a.sealed b.sealed then
+      let
+        dep = builtins.filter (k: isDepartedEntry a.sealed.${k}) (builtins.attrNames a.sealed);
+      in
+      if dep == [ ] then
+        true
+      else
+        throw "${site}: '${a.name}' holds component(s) ${
+          builtins.concatStringsSep ", " (map (k: "'${k}'") dep)
+        } that are not the value their producer completed: ${
+          a.sealed.${builtins.head dep}.__departed
+        }; build the change through its producer"
     else
       let
         # a departed component is decided over the subject it carries; it can only be refused, never
@@ -627,15 +641,18 @@ let
         # value-identity shortcut reads (a rebuilt binding is a fresh thunk)
         strip =
           m:
-          m
-          // builtins.mapAttrs (_: v: if isDepartedEntry v then v.__subject else v) (
-            builtins.intersectAttrs (builtins.listToAttrs (
-              map (k: {
-                name = k;
-                value = null;
-              }) departed
-            )) m
-          );
+          if departed == [ ] then
+            m
+          else
+            m
+            // builtins.mapAttrs (_: v: if isDepartedEntry v then v.__subject else v) (
+              builtins.intersectAttrs (builtins.listToAttrs (
+                map (k: {
+                  name = k;
+                  value = null;
+                }) departed
+              )) m
+            );
         sa = strip a.sealed;
         sb = strip b.sealed;
         reasonAt =
