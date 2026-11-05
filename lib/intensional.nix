@@ -458,6 +458,9 @@ let
   # name is refused by name.
   # A sealed component's departure: its standing's reason where it declares a subject and does not hold it,
   # the reason a caller's `subjectEntry` carries, or null.
+  intensionalWitness = {
+    completion = "__intensionalSelf";
+  };
   departureOf =
     c:
     if declaresSubject c.value then
@@ -512,6 +515,8 @@ let
           value = c.tag;
         }) tagged
       );
+      sealedCs = builtins.filter (c: c.tag == sealedMarker) tagged;
+      propCs = builtins.filter propagates tagged;
     in
     # Two components at one path would keep the first and DROP the other silently (`listToAttrs`),
     # so the composite would mint over a partial preimage: refused by name instead.
@@ -520,10 +525,6 @@ let
     else if tags ? __departed then
       throw "componentsPreimage: a component's path renders to `__departed`, the sealed map's reserved departure record; rename the component"
     else
-      let
-        sealedCs = builtins.filter (c: c.tag == sealedMarker) tagged;
-        propCs = builtins.filter propagates tagged;
-      in
       {
         inherit tags;
         sealed =
@@ -831,9 +832,7 @@ let
           # the completion witness: a `//` copy still returns this value, so `standingOf` tells a
           # departed copy from the value completed here
           __intensionalSelf = _: self;
-          __witness = {
-            completion = "__intensionalSelf";
-          };
+          __witness = intensionalWitness;
         };
       in
       self;
