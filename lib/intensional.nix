@@ -204,7 +204,12 @@ let
       }
     else if declared && !(stampAgrees (v.${f} null) v) then
       { refused = "a `//` over it keeps its mark while changing what the mark stands for"; }
-    else if rewritesWitnessed v then
+    # `rewritesWitnessed`, with the fault already known null: its `witnessOf` would compute it again
+    else if
+      builtins.any (
+        n: v ? ${n} && v ? ${v.__witness.checks.${n}} && v.${n} != v.${v.__witness.checks.${n}}
+      ) (builtins.attrNames (v.__witness.checks or { }))
+    then
       { compared = "a wrapper rewrote a field its mark was minted over"; }
     else
       { holds = true; };
@@ -296,7 +301,6 @@ let
         __departed = st.refused or st.compared;
         __subject = entry;
       };
-  isDepartedEntry = v: builtins.isAttrs v && v ? __departed && v ? __subject;
   #
   # ★ CLOSURES FIRST. Undeclared, the subject of a record is a two-element list: its function-valued
   # fields, then the whole record. List `==` decides index 0 before index 1, and `==` on two functions
@@ -468,7 +472,7 @@ let
         st = standingOf c.value;
       in
       st.refused or st.compared or null
-    else if isDepartedEntry c.value then
+    else if builtins.isAttrs c.value && c.value ? __departed && c.value ? __subject then
       c.value.__departed
     else
       null;
@@ -540,7 +544,7 @@ let
               c:
               if declaresSubject c.value then
                 c // { value.compared = c.value.__mint.unmintable.subject; }
-              else if isDepartedEntry c.value then
+              else if builtins.isAttrs c.value && c.value ? __departed && c.value ? __subject then
                 c // { value = c.value.__subject; }
               else
                 c
