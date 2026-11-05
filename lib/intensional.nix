@@ -456,6 +456,21 @@ let
   # handed up stripped of it, and its path enters the parent's record. Each level's map is one call's
   # output, so the top level's record covers every depth. A component path rendering to the reserved
   # name is refused by name.
+  # A sealed component's departure: its standing's reason where it declares a subject and does not hold it,
+  # the reason a caller's `subjectEntry` carries, or null.
+  departureOf =
+    c:
+    if declaresSubject c.value then
+      let
+        st = standingOf c.value;
+      in
+      st.refused or st.compared or null
+    else if isDepartedEntry c.value then
+      c.value.__departed
+    else
+      null;
+  departs = c: departureOf c != null;
+  propagatesDeparture = c: c.value.__sealed ? __departed;
   componentsPreimage =
     hashIdentity:
     let
@@ -508,33 +523,9 @@ let
       let
         sealedCs = builtins.filter (c: c.tag == sealedMarker) tagged;
         propCs = builtins.filter propagates tagged;
-        departureOf =
-          c:
-          if declaresSubject c.value then
-            let
-              st = standingOf c.value;
-            in
-            st.refused or st.compared or null
-          else if isDepartedEntry c.value then
-            c.value.__departed
-          else
-            null;
-        departures = builtins.filter (d: d.value != null) (
-          map (c: {
-            inherit (c) name;
-            value = departureOf c;
-          }) sealedCs
-          ++ map (
-            c:
-            let
-              d = c.value.__sealed.__departed;
-            in
-            {
-              inherit (c) name;
-              value = d.${builtins.head (builtins.attrNames d)};
-            }
-          ) (builtins.filter (c: c.value.__sealed ? __departed) propCs)
-        );
+        # filtered before anything is built: an honest map allocates no record and no per-component cell
+        departedCs = builtins.filter departs sealedCs;
+        departedPs = builtins.filter propagatesDeparture propCs;
       in
       {
         inherit tags;
@@ -568,7 +559,29 @@ let
               }
             ) propCs
           )
-          // (if departures == [ ] then { } else { __departed = builtins.listToAttrs departures; });
+          // (
+            if departedCs == [ ] && departedPs == [ ] then
+              { }
+            else
+              {
+                __departed = builtins.listToAttrs (
+                  map (c: {
+                    inherit (c) name;
+                    value = departureOf c;
+                  }) departedCs
+                  ++ map (
+                    c:
+                    let
+                      d = c.value.__sealed.__departed;
+                    in
+                    {
+                      inherit (c) name;
+                      value = d.${builtins.head (builtins.attrNames d)};
+                    }
+                  ) departedPs
+                );
+              }
+          );
       };
 
   # THE COLLISION REFUSAL (c+). `a` and `b` are `{ name; mark; sealed; }`, `mark` minted over a
