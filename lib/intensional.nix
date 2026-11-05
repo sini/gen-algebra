@@ -296,12 +296,7 @@ let
         __departed = st.refused or st.compared;
         __subject = entry;
       };
-  isDepartedEntry =
-    v:
-    let
-      r = builtins.tryEval (builtins.isAttrs v && v ? __departed && v ? __subject);
-    in
-    r.success && r.value;
+  isDepartedEntry = v: builtins.isAttrs v && v ? __departed && v ? __subject;
   #
   # ★ CLOSURES FIRST. Undeclared, the subject of a record is a two-element list: its function-valued
   # fields, then the whole record. List `==` decides index 0 before index 1, and `==` on two functions
@@ -451,30 +446,16 @@ let
   #     over a sealed component) enters by its mark AND hands its `__sealed` over under its path.
   #     Its mark is blind to what it sealed, so without this a parent over `listOf (typedef R1)` and
   #     one over `listOf (typedef R9)` would share a mark and an empty sealed map and decide `true`.
-  #     A propagated map holding a departed entry is handed up as one departed entry over the map
-  #     with each departed entry stripped to its subject (`hoistDeparted`), so `sealedCollisionEq`,
-  #     which reads the top level, refuses it at any depth: each level's map is one call's output.
-  hoistDeparted =
-    m:
-    let
-      departed = builtins.filter (k: isDepartedEntry m.${k}) (builtins.attrNames m);
-    in
-    if departed == [ ] then
-      m
-    else
-      {
-        __departed = m.${builtins.head departed}.__departed;
-        __subject =
-          m
-          // builtins.mapAttrs (_: v: v.__subject) (
-            builtins.intersectAttrs (builtins.listToAttrs (
-              map (k: {
-                name = k;
-                value = null;
-              }) departed
-            )) m
-          );
-      };
+  #
+  # ★ THE DEPARTURE IS RECORDED ONCE, PER PREIMAGE (shared enforcement). A sealed map in which any
+  # component is not the value its producer completed carries one reserved top-level key,
+  # `__departed = { <component> = <reason>; }`, and every component entry holds its subject unwrapped.
+  # The key is ABSENT on a map where nothing departed, so an honest map's shape is unchanged.
+  # `sealedCollisionEq` reads the record with one `?` instead of scanning each entry per comparison,
+  # and propagation reads the child map's record the same way: a propagated map that carries one is
+  # handed up stripped of it, and its path enters the parent's record. Each level's map is one call's
+  # output, so the top level's record covers every depth. A component path rendering to the reserved
+  # name is refused by name.
   componentsPreimage =
     hashIdentity:
     let
@@ -521,26 +502,73 @@ let
     # so the composite would mint over a partial preimage: refused by name instead.
     if builtins.length (builtins.attrNames tags) != builtins.length tagged then
       throw "componentsPreimage: two components share a path; each component needs its own path"
+    else if tags ? __departed then
+      throw "componentsPreimage: a component's path renders to `__departed`, the sealed map's reserved departure record; rename the component"
     else
+      let
+        sealedCs = builtins.filter (c: c.tag == sealedMarker) tagged;
+        propCs = builtins.filter propagates tagged;
+        departureOf =
+          c:
+          if declaresSubject c.value then
+            let
+              st = standingOf c.value;
+            in
+            st.refused or st.compared or null
+          else if isDepartedEntry c.value then
+            c.value.__departed
+          else
+            null;
+        departures = builtins.filter (d: d.value != null) (
+          map (c: {
+            inherit (c) name;
+            value = departureOf c;
+          }) sealedCs
+          ++ map (
+            c:
+            let
+              d = c.value.__sealed.__departed;
+            in
+            {
+              inherit (c) name;
+              value = d.${builtins.head (builtins.attrNames d)};
+            }
+          ) (builtins.filter (c: c.value.__sealed ? __departed) propCs)
+        );
+      in
       {
         inherit tags;
-        sealed = builtins.listToAttrs (
-          # A value with no declared subject is handed over as the component record itself (`listToAttrs` reads its
-          # `name` and `value`), because `//` carries attribute slots while any `value = …` binding
-          # is a fresh thunk. The copy keeps the value SLOT so that Nix `==` can apply its documented
-          # value-identity optimisation (Nix manual, "Equality" under Language Values, on `==` for
-          # functions); a function has no identity of its own (ADR-0034). Fail-closed: an evaluator
-          # that drops the optimisation compares two shared-lambda components unequal, and the
-          # result is a refusal by name, never a false admit.
-          map (
-            c:
-            if declaresSubject c.value then
-              c // { value = subjectEntry c.value { compared = c.value.__mint.unmintable.subject; }; }
-            else
+        sealed =
+          builtins.listToAttrs (
+            # A value with no declared subject is handed over as the component record itself (`listToAttrs` reads its
+            # `name` and `value`), because `//` carries attribute slots while any `value = …` binding
+            # is a fresh thunk. The copy keeps the value SLOT so that Nix `==` can apply its documented
+            # value-identity optimisation (Nix manual, "Equality" under Language Values, on `==` for
+            # functions); a function has no identity of its own (ADR-0034). Fail-closed: an evaluator
+            # that drops the optimisation compares two shared-lambda components unequal, and the
+            # result is a refusal by name, never a false admit.
+            map (
+              c:
+              if declaresSubject c.value then
+                c // { value.compared = c.value.__mint.unmintable.subject; }
+              else if isDepartedEntry c.value then
+                c // { value = c.value.__subject; }
+              else
+                c
+            ) sealedCs
+            ++ map (
+              c:
               c
-          ) (builtins.filter (c: c.tag == sealedMarker) tagged)
-          ++ map (c: c // { value = hoistDeparted c.value.__sealed; }) (builtins.filter propagates tagged)
-        );
+              // {
+                value =
+                  if c.value.__sealed ? __departed then
+                    removeAttrs c.value.__sealed [ "__departed" ]
+                  else
+                    c.value.__sealed;
+              }
+            ) propCs
+          )
+          // (if departures == [ ] then { } else { __departed = builtins.listToAttrs departures; });
       };
 
   # THE COLLISION REFUSAL (c+). `a` and `b` are `{ name; mark; sealed; }`, `mark` minted over a
@@ -616,63 +644,33 @@ let
       throw "${site}: sealedCollisionEq expects two { name; mark; sealed = { <component> = <subject>; }; }"
     else if a.mark != b.mark then
       false
-    else if a.sealed == { } && b.sealed == { } then
-      true
     else if eq a.sealed b.sealed then
-      let
-        dep = builtins.filter (k: isDepartedEntry a.sealed.${k}) (builtins.attrNames a.sealed);
-      in
-      if dep == [ ] then
-        true
-      else
-        throw "${site}: '${a.name}' holds component(s) ${
-          builtins.concatStringsSep ", " (map (k: "'${k}'") dep)
-        } that are not the value their producer completed: ${
-          a.sealed.${builtins.head dep}.__departed
-        }; build the change through its producer"
+      # equal maps carry one record: a departure at an equal subject is refused, by name
+      if a.sealed ? __departed then departedRefusal site a.name a.sealed.__departed else true
+    else if !(a.sealed ? __departed || b.sealed ? __departed) then
+      if isEvidence eq a.sealed b.sealed then false else sealedRefusal site a.name a.sealed b.sealed
     else
       let
-        # a departed component is decided over the subject it carries; it can only be refused, never
-        # admitted, at an equal one (`subjectEntry`)
-        departed = builtins.filter (
-          k: isDepartedEntry (a.sealed.${k} or null) || isDepartedEntry (b.sealed.${k} or null)
-        ) (builtins.attrNames (a.sealed // b.sealed));
-        # only the departed keys are rebuilt: `//` keeps every other component's slot, which `==`'s
-        # value-identity shortcut reads (a rebuilt binding is a fresh thunk)
-        strip =
-          m:
-          if departed == [ ] then
-            m
-          else
-            m
-            // builtins.mapAttrs (_: v: if isDepartedEntry v then v.__subject else v) (
-              builtins.intersectAttrs (builtins.listToAttrs (
-                map (k: {
-                  name = k;
-                  value = null;
-                }) departed
-              )) m
-            );
+        # a departed component is decided over the subject it carries, so the record is set aside:
+        # it can only be refused, never admitted, at an equal one (`removeAttrs` keeps every slot)
+        strip = m: if m ? __departed then removeAttrs m [ "__departed" ] else m;
         sa = strip a.sealed;
         sb = strip b.sealed;
-        reasonAt =
-          k:
-          if isDepartedEntry (a.sealed.${k} or null) then
-            a.sealed.${k}.__departed
-          else
-            b.sealed.${k}.__departed;
       in
       if eq sa sb then
-        if departed == [ ] then
-          true
-        else
-          throw "${site}: '${a.name}' holds component(s) ${
-            builtins.concatStringsSep ", " (map (k: "'${k}'") departed)
-          } that are not the value their producer completed: ${reasonAt (builtins.head departed)}; build the change through its producer"
+        departedRefusal site a.name ((b.sealed.__departed or { }) // (a.sealed.__departed or { }))
       else if isEvidence eq sa sb then
         false
       else
         sealedRefusal site a.name sa sb;
+  departedRefusal =
+    site: name: d:
+    let
+      ks = builtins.attrNames d;
+    in
+    throw "${site}: '${name}' holds component(s) ${
+      builtins.concatStringsSep ", " (map (k: "'${k}'") ks)
+    } that are not the value their producer completed: ${d.${builtins.head ks}}; build the change through its producer";
   sealedRefusal =
     site: name: sa: sb:
     let
