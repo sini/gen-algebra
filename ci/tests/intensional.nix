@@ -453,16 +453,20 @@ in
         differingArgs = conservativeEq t1 (mk 2);
         declared = genAlgebra.hasDeclaredSubject t1;
         departedDeclared = genAlgebra.hasDeclaredSubject (t1 // { includes = [ "A" ]; });
+        # a departed component is recorded in its map's departure record, never entered as one that holds
         componentDeclared =
-          (genAlgebra.componentsPreimage genIdentity.hashIdentity [
-            {
-              path = [ "c" ];
-              value = t1 // {
-                args = 2;
-              };
-            }
-          ]).sealed.c
-            ? compared;
+          let
+            m =
+              (genAlgebra.componentsPreimage genIdentity.hashIdentity [
+                {
+                  path = [ "c" ];
+                  value = t1 // {
+                    args = 2;
+                  };
+                }
+              ]).sealed;
+          in
+          !(m ? __departed && m.__departed ? c);
         # unequal subjects decide `false` before any stamp: a departed copy is never another term
         departedAgainstAnotherTerm = conservativeEq (t1 // { note = "x"; }) (mk 2);
         departedComponentAgainstAnotherTerm = genAlgebra.sealedCollisionEq "probe" (composite (
