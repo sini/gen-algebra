@@ -523,9 +523,6 @@ let
       let
         sealedCs = builtins.filter (c: c.tag == sealedMarker) tagged;
         propCs = builtins.filter propagates tagged;
-        # filtered before anything is built: an honest map allocates no record and no per-component cell
-        departedCs = builtins.filter departs sealedCs;
-        departedPs = builtins.filter propagatesDeparture propCs;
       in
       {
         inherit tags;
@@ -560,7 +557,9 @@ let
             ) propCs
           )
           // (
-            if departedCs == [ ] && departedPs == [ ] then
+            # decided by `any` before anything is built: an honest map allocates no record, no binding and no
+            # per-component cell; the filters run only on the departed path
+            if !(builtins.any departs sealedCs || builtins.any propagatesDeparture propCs) then
               { }
             else
               {
@@ -568,7 +567,7 @@ let
                   map (c: {
                     inherit (c) name;
                     value = departureOf c;
-                  }) departedCs
+                  }) (builtins.filter departs sealedCs)
                   ++ map (
                     c:
                     let
@@ -578,7 +577,7 @@ let
                       inherit (c) name;
                       value = d.${builtins.head (builtins.attrNames d)};
                     }
-                  ) departedPs
+                  ) (builtins.filter propagatesDeparture propCs)
                 );
               }
           );
