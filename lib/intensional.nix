@@ -472,7 +472,7 @@ let
         st = standingOf c.value;
       in
       st.refused or st.compared or null
-    else if builtins.isAttrs c.value && c.value ? __departed && c.value ? __subject then
+    else if c.value ? __departed && c.value ? __subject then
       c.value.__departed
     else
       null;
@@ -544,7 +544,7 @@ let
               c:
               if declaresSubject c.value then
                 c // { value.compared = c.value.__mint.unmintable.subject; }
-              else if builtins.isAttrs c.value && c.value ? __departed && c.value ? __subject then
+              else if c.value ? __departed && c.value ? __subject then
                 c // { value = c.value.__subject; }
               else
                 c
