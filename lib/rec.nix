@@ -112,19 +112,23 @@ let
 
     # Left-biased combination (⊕). Left's stacks go above right's stacks.
     # Label order: left's order first, then right-only labels.
-    # O(n+m) via set-based dedup instead of linear scan.
+    # Each step allocates for the labels both operands carry, not for their union.
     # Two operands of one sort (P2, R7 (b)): one record, `combine { left; right; }`. The record is
     # open (R5), and a missing field or a non-set is refused by name with a `throw`, so `tryEval`
     # contains it (ADR-0025 item 1); a native `{ left, right, ... }` formal aborts on either.
+    # A well-formed call is decided by the two field tests alone; only a call failing them reaches
+    # `checkRequired`, which names the refusal.
     combine =
       args:
-      let
-        r = checkRequired "gen-algebra.record.combine" [ "left" "right" ] args;
-      in
-      builtins.seq r (combine' r.left r.right);
+      if builtins.isAttrs args && args ? left && args ? right then
+        combine' args.left args.right
+      else
+        builtins.seq (checkRequired "gen-algebra.record.combine" [ "left" "right" ] args) (
+          combine' args.left args.right
+        );
 
     # Smalltalk direction: delta(parent) ⊕ parent — delta wins
-    mixin = delta: parent: combine' (delta parent) parent;
+    mixin = delta: parent: combineOn' true (delta parent) parent;
 
     # Instantiated Beta inheritance (Bracha 1990 §2.2) with inner = ∅.
     # The general form C'(inner) = P'(Δ'(inner) ⊕ inner) ⊕ Δ'(inner) is
@@ -143,7 +147,7 @@ let
       let
         m2i = m2 i;
       in
-      combine' (m1 (combine' m2i i)) m2i;
+      combine' (m1 (combineOn' true m2i i)) m2i;
 
     satisfies = required: r: builtins.all (l: self.has l r) required;
 
@@ -465,34 +469,27 @@ let
 
   # `combine`'s positional core: the published door takes one record, and this file's own
   # callers (mixin, mixinBeta, compose) call the core.
-  combine' =
-    a: b:
-    let
-      aSet = builtins.listToAttrs (
-        builtins.map (l: {
-          name = l;
-          value = true;
-        }) a.__order
-      );
-      allLabels = a.__order ++ builtins.filter (l: !(aSet ? ${l})) b.__order;
-      mergeStacks =
-        l:
-        let
-          aStack = a.__entries.${l} or [ ];
-          bStack = b.__entries.${l} or [ ];
-        in
-        aStack ++ bStack;
-      entries = builtins.listToAttrs (
-        builtins.map (l: {
-          name = l;
-          value = mergeStacks l;
-        }) allLabels
-      );
-    in
-    {
-      __entries = entries;
-      __order = allLabels;
-    };
+  combine' = combineOn' false;
+
+  # `rightIsBase`: the right operand is the record the left one extends (mixin's parent, compose's
+  # inner), so it is laid under the left; either way the entries are equal, since `shared` overrides
+  # every label the two carry, and laying the smaller operand on top copies less.
+  combineOn' = rightIsBase: a: b: {
+    # A label on one side only keeps its stack; only a label on both is re-stacked (left's above
+    # right's), so a step allocates for the overlap rather than for the union of the two records.
+    __entries =
+      let
+        shared = builtins.mapAttrs (l: aStack: aStack ++ b.__entries.${l}) (
+          builtins.intersectAttrs b.__entries a.__entries
+        );
+      in
+      if rightIsBase then
+        b.__entries // (a.__entries // shared)
+      else
+        a.__entries // (b.__entries // shared);
+    # Left's order, then right's labels left does not carry: a record's labels are its entries' names.
+    __order = a.__order ++ builtins.filter (l: !(a.__entries ? ${l})) b.__order;
+  };
 
   # gen-prelude's `checkRequired`, restated (this library takes no inputs): a record door refuses a
   # non-set and a missing field by name, reading `<door>: … (in <construct>)`. Not exported.
