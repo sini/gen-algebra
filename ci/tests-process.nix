@@ -87,20 +87,20 @@
 
         # A composition step costs the labels its two operands share, not their union: one record
         # folded over 8, 16, 32 and 64 steps, each adding a label and re-stacking one shared label, in
-        # each composition (`mixin`, the `combine` door, a `compose` chain). The per-step slope of each
-        # doubling is at most 1.30 times the previous one, for thunks and for function calls. A step
-        # rebuilding the union doubles the slope per doubling (1.5 to 1.9 measured); a step mapping
-        # over the whole accumulator keeps thunks flat and grows calls, so both are read. The value,
-        # not the counts, is pinned: counts may differ by evaluator.
+        # each composition (`mixin`, the `combine` door, a `compose` chain in each direction). The
+        # per-step slope of each doubling is at most 1.30 times the previous one, for thunks and for
+        # function calls. A step rebuilding the union doubles the slope per doubling (1.5 to 1.9
+        # measured); a step mapping over the whole accumulator keeps thunks flat and grows calls, so
+        # both are read. The value, not the counts, is pinned: counts may differ by evaluator.
         summary=""
-        for c in mixin:s combine:b compose:s1; do
+        for c in mixin:s combine:b compose:s1 composes:s; do
           fold=''${c%%:*}
           head=''${c#*:}
           t=""
           k=""
           for m in 8 16 32 64; do
             cellCount "curve-$fold-$m"
-            if [ "$fold" = mixin ]; then want="\"$((m + 2)):s$m\""; else want="\"$((m + 2)):$head\""; fi
+            if [ "$head" = s ]; then want="\"$((m + 2)):s$m\""; else want="\"$((m + 2)):$head\""; fi
             [ "$val" = "$want" ] || die "curve-$fold-$m" "expected value $want, got '$val'"
             t="$t $thunks"
             k="$k $calls"
@@ -118,8 +118,8 @@
         done
 
         # 0/0 is a false pass: the runner must have executed every cell above.
-        [ "$ran" = "15" ] || die runner "expected 15 evaluations, ran $ran"
-        echo "tests-process: 15 cells, every exit read unpiped; empty-attrset mints $e1 for 1 and $e8 for 8, spy control $control; per-step slopes at 8/16/32/64 steps:$summary"
+        [ "$ran" = "19" ] || die runner "expected 19 evaluations, ran $ran"
+        echo "tests-process: 19 cells, every exit read unpiped; empty-attrset mints $e1 for 1 and $e8 for 8, spy control $control; per-step slopes at 8/16/32/64 steps:$summary"
       '';
     };
 }

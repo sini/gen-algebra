@@ -54,6 +54,8 @@ let
       ) base (steps m);
     # a `compose` chain in the Beta shape (the accumulated mixin outermost), applied to the base
     compose = m: builtins.foldl' (acc: i: R.compose acc (delta i)) (p: p) (steps m) base;
+    # a `compose` chain in the Smalltalk shape (each new mixin outermost), applied to the base
+    composes = m: builtins.foldl' (acc: i: R.compose (delta i) acc) (p: p) (steps m) base;
   };
   # Every head is read, so every step's entries are forced; the value is the label count and the
   # shared label's head, which the runner pins per arm.
