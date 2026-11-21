@@ -84,7 +84,7 @@ in
       };
     };
     # The constant tags minted once per partial application (den-hoag-a7c9r) are the mint's own answer
-    # for `null` and `[ ]`, through both entries.
+    # for `null`, `[ ]` and `{ }`, through both entries, and the three stay distinct.
     test-constant-tags-are-the-mints-answer = {
       expr =
         let
@@ -98,6 +98,10 @@ in
               path = [ "l" ];
               value = [ ];
             }
+            {
+              path = [ "a" ];
+              value = { };
+            }
           ];
         in
         [
@@ -106,11 +110,32 @@ in
           (p.tags.n == inert null)
           (p.tags.l == inert [ ])
           (tag null != tag [ ])
+          (tag { } == inert { })
+          (p.tags.a == inert { })
+          (tag { } != tag [ ])
+          (tag { } != tag null)
         ];
       expected = [
         true
         true
         true
+        true
+        true
+        true
+        true
+        true
+        true
+      ];
+    };
+    # Deciding that a value is the empty attrset forces none of its members: an attrset whose `type` (the
+    # attribute `==` reads to recognise a derivation) throws is defined at WHNF with a member that throws,
+    # so it is sealed, as any other such value is.
+    test-empty-attrs-test-forces-no-member = {
+      expr = [
+        (tag { type = throw "type"; } == sealedMarker)
+        (tag { x = throw "x"; } == sealedMarker)
+      ];
+      expected = [
         true
         true
       ];

@@ -397,16 +397,19 @@ let
   sealedMarker = {
     sealed = true;
   };
-  # `null` and `[ ]` are most of a kind's inert components (an absent function, an empty collection,
-  # no opaque module), and each tag is the mint's answer for a constant: minted once per mint and
-  # shared, byte-identical to minting it per component (den-hoag-a7c9r). A caller sharing the
-  # partial application (`preimageTagOf hashIdentity`, `componentsPreimage hashIdentity`) shares them.
+  # `null`, `[ ]` and `{ }` are most of a kind's inert components (an absent function, an empty
+  # collection, no opaque module), and each tag is the mint's answer for a constant: minted once per
+  # mint and shared, byte-identical to minting it per component (den-hoag-a7c9r). A caller sharing
+  # the partial application (`preimageTagOf hashIdentity`, `componentsPreimage hashIdentity`) shares
+  # them.
   preimageTagOf =
     hashIdentity:
     let
       inertOf = v: { inert = hashIdentity "component" [ "value" ] (_: v); };
       nullTag = inertOf null;
       emptyListTag = inertOf [ ];
+      # `{ }`'s tag, under a name a nixpkgs evaluation already interns, so it adds no symbol bytes
+      emptyValue = inertOf { };
     in
     v:
     let
@@ -429,6 +432,9 @@ let
       nullTag
     else if v == [ ] then
       emptyListTag
+    # decided by its names, never by `v == { }`, which forces an attrset's `type` member
+    else if builtins.isAttrs v && builtins.attrNames v == [ ] then
+      emptyValue
     else
       let
         attempt = builtins.tryEval (hashIdentity "component" [ "value" ] (_: v));
