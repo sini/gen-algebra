@@ -121,14 +121,25 @@ let
     combine =
       args:
       if builtins.isAttrs args && args ? left && args ? right then
-        combine' args.left args.right
+        combine' false args.left args.right
       else
         builtins.seq (checkRequired "gen-algebra.record.combine" [ "left" "right" ] args) (
-          combine' args.left args.right
+          combine' false args.left args.right
         );
 
-    # Smalltalk direction: delta(parent) ⊕ parent — delta wins
-    mixin = delta: parent: mixin' (delta parent) parent;
+    # Smalltalk direction: delta(parent) ⊕ parent, delta wins. The delta's record is laid over its
+    # parent, so only the delta's labels are mapped: a fold of mixins grows the parent, never the
+    # delta, so a step costs the delta.
+    mixin =
+      delta: parent:
+      let
+        d = delta parent;
+      in
+      {
+        __entries =
+          parent.__entries // builtins.mapAttrs (l: s: s ++ (parent.__entries.${l} or [ ])) d.__entries;
+        __order = d.__order ++ builtins.filter (l: !(d.__entries ? ${l})) parent.__order;
+      };
 
     # Instantiated Beta inheritance (Bracha 1990 §2.2) with inner = ∅.
     # The general form C'(inner) = P'(Δ'(inner) ⊕ inner) ⊕ Δ'(inner) is
@@ -139,7 +150,7 @@ let
       let
         inner = self.empty;
       in
-      combine' (prefix (combine' suffix inner)) suffix;
+      combine' false (prefix (combine' false suffix inner)) suffix;
 
     # Mixin composition: M1 ⋆ M2 = fun(i) M1(M2(i) ⊕ i) ⊕ M2(i)
     compose =
@@ -147,7 +158,7 @@ let
       let
         m2i = m2 i;
       in
-      combine' (m1 (combineOn' true m2i i)) m2i;
+      combine' false (m1 (combine' true m2i i)) m2i;
 
     satisfies = required: r: builtins.all (l: self.has l r) required;
 
@@ -469,12 +480,10 @@ let
 
   # `combine`'s positional core: the published door takes one record, and this file's own
   # callers (mixin, mixinBeta, compose) call the core.
-  combine' = combineOn' false;
-
   # `rightIsBase`: the right operand is the record the left one extends (compose's inner), so it is
   # laid under the left; either way the entries are equal, since `shared` overrides every label the
   # two carry, and laying the smaller operand on top copies less.
-  combineOn' = rightIsBase: a: b: {
+  combine' = rightIsBase: a: b: {
     # A label on one side only keeps its stack; only a label on both is re-stacked (left's above
     # right's), so a step allocates for the overlap rather than for the union of the two records.
     __entries =
@@ -489,13 +498,6 @@ let
         a.__entries // (b.__entries // shared);
     # Left's order, then right's labels left does not carry: a record's labels are its entries' names.
     __order = a.__order ++ builtins.filter (l: !(a.__entries ? ${l})) b.__order;
-  };
-
-  # `mixin`'s step: the delta's record is laid over its parent, so only the delta's labels are
-  # mapped. A fold of mixins grows the parent, never the delta, so a step costs the delta.
-  mixin' = d: p: {
-    __entries = p.__entries // builtins.mapAttrs (l: s: s ++ (p.__entries.${l} or [ ])) d.__entries;
-    __order = d.__order ++ builtins.filter (l: !(d.__entries ? ${l})) p.__order;
   };
 
   # gen-prelude's `checkRequired`, restated (this library takes no inputs): a record door refuses a
